@@ -46,7 +46,7 @@ import { State } from "st4t3";
 
 export default class Land extends State<"Jump"> {
   start() {
-    console.log("landed");
+    console.log("landed.");
   }
   stop() {}
 
@@ -121,6 +121,17 @@ export default class Land extends BaseState {
   jump() {
     this.transition("Jump");
   }
+}
+```
+
+## What if I want a state that transitions to nothing?
+
+```
+import { State } from "st4t3";
+
+export default Final extends State<never> {
+  start() {}
+  stop() {}
 }
 ```
 
