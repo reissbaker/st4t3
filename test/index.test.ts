@@ -14,6 +14,7 @@ class Foo extends Base {
   end() {
     this.machine.transition("final");
   }
+  foo() {}
 }
 
 class Bar extends Base {
@@ -98,5 +99,11 @@ describe("State Machines", () => {
     });
     machine.current().next();
     expect(startSpy).toHaveBeenCalledOnce();
+  });
+
+  it<Should>("allow calling state-specific functions when accessing states", ({ machine }) => {
+    const spy = vi.spyOn(machine.state("foo"), "foo");
+    machine.state("foo").foo();
+    expect(spy).toHaveBeenCalledOnce();
   });
 });

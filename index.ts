@@ -63,7 +63,8 @@ export class Machine<Args extends StateClassMap<any>> {
     return this._current;
   }
 
-  state(name: TransitionsOf<Args>) {
+  // Given a name, returns the state
+  state<T extends TransitionsOf<Args>>(name: T): StateMap<Args>[T] {
     return this.stateMap[name];
   }
 }
