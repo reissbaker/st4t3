@@ -4,11 +4,13 @@
   "description": "A small, simple state machine library",
   "main": "build/index.js",
   "scripts": {
-    "test": "vitest"
+    "test": "vitest",
+    "coverage": "rm -rf ./coverage && vitest run --coverage"
   },
   "author": "Matt Baker",
   "license": "ISC",
   "devDependencies": {
+    "@vitest/coverage-c8": "^0.22.1",
     "vitest": "^0.22.1"
   }
 }
