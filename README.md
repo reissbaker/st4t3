@@ -1,11 +1,11 @@
 # st4t3
 
 An ultra-simple, tiny, typesafe state machine library designed to handle large
-state graphs. It requires minimal memory allocations even for large state
-graphs, and allows you to break large state machines into many files rather than
-forcing you to define the machine entirely in one file to get full type safety.
-There are no runtime dependencies and the code is <100 lines of TypeScript,
-excluding comments.
+state graphs for latency-sensitive applications. It requires minimal memory
+allocations, and allows you to break large state machines into many files
+rather than forcing you to define the machine entirely in one file to get full
+type safety. There are no runtime dependencies and the code is <100 lines of
+TypeScript, excluding comments.
 
 ## Development
 
