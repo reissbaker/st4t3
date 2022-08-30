@@ -101,6 +101,18 @@ describe("State Machines", () => {
     expect(startSpy).toHaveBeenCalledOnce();
   });
 
+  it<Should>("say it's running after being started", ({ machine }) => {
+    expect(machine.running()).toEqual(false);
+    machine.start();
+    expect(machine.running()).toEqual(true);
+  });
+
+  it<Should>("say it's not running after being stopped", ({ machine }) => {
+    machine.start();
+    machine.stop();
+    expect(machine.running()).toEqual(false);
+  });
+
   it<Should>("allow calling state-specific functions when accessing states", ({ machine }) => {
     const spy = vi.spyOn(machine.state("foo"), "foo");
     machine.state("foo").foo();
