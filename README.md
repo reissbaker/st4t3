@@ -7,12 +7,19 @@ rather than forcing you to define the machine entirely in one file to get full
 type safety. There are no runtime dependencies and the code is <110 lines of
 TypeScript, excluding comments.
 
-## Development
+* [Development](#development)
+* [Getting started](#getting-started)
+* [Events](#events)
+* [Nested state machines](#nested-state-machines)
+* [Type safety](#type-safety)
+* [Performance](#performance)
+
+# Development
 
 Build with `npm run build`. Test with `npm run test`. Check the test coverage
 report with `npm run coverage`.
 
-## API
+# Getting started
 
 Every state machine is composed of two parts: a set of states, and the machine
 that runs the states. To define a state, you extend the abstract `TransitionTo`
@@ -140,7 +147,7 @@ export default Final extends TransitionTo<never> {
 }
 ```
 
-## Events
+# Events
 
 States emit events when they start and stop, and you can listen to them via a
 slimmed-down version of the NodeJS EventEmitter API.
@@ -177,7 +184,7 @@ machine.state("Land").once("start", () => {
 });
 ```
 
-## Nested state machines
+# Nested state machines
 
 You can build nested (also called "heirarchical") state machines by creating
 new machines inside your states. For example:
@@ -237,7 +244,7 @@ Nested state machines, like all state machines, don't need to all be defined in
 the same file; it's completely valid to break apart the states into separate
 files.
 
-## Type safety
+# Type safety
 
 * When you create a new `Machine` instance, it checks for exhaustiveness at
   compile time: you can't accidentally forget to include a state that one of
@@ -255,7 +262,7 @@ files.
   which other states... And helping human maintainers understand your state
   graph is probably a big part of why you're using a state machine.
 
-## Performance
+# Performance
 
 `st4t3` allocates all of the state classes when you call the `Machine`
 constructor:
