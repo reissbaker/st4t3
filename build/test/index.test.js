@@ -3,8 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const vitest_1 = require("vitest");
 const __1 = require("../");
 class Base extends __1.TransitionTo {
-    start() { }
-    stop() { }
     test() { }
 }
 class Foo extends Base {
@@ -25,8 +23,6 @@ class Bar extends Base {
     }
 }
 class Final extends __1.TransitionTo {
-    start() { }
-    stop() { }
     test() { }
     next() { }
     end() { }

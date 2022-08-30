@@ -22,11 +22,16 @@ import { TransitionTo } from "st4t3";
 // You must pass the names of any states you plan on transitioning to in the
 // class definition, like so:
 export default class Jump extends TransitionTo<"Land"> {
-  // You must implement start() and stop()
+  // Start gets automatically called when a state is entered (or when the
+  // machine starts, if you're the initial state)
   start() {
     console.log("jumping!");
   }
-  stop() {}
+  // Stop gets automatically called when you're leaving a state (or when the
+  // machine stops, if you're the current state)
+  stop() {
+    console.log("stopping jumping");
+  }
 
   // Custom code
   jump() {
@@ -49,7 +54,6 @@ export default class Land extends TransitionTo<"Jump"> {
   start() {
     console.log("landed.");
   }
-  stop() {}
 
   // Custom code
   land() {
@@ -77,21 +81,21 @@ const machine = new Machine("Land", {
 machine.start(); // Prints "landed."
 machine.current().jump(); // Prints "jumped!"
 machine.current().jump(); // No-op, since Jump#jump() is a no-op
-machine.current().land(); // Prints "landed."
+machine.current().land(); // Prints "stopped jumping" and then "landed."
 ```
 
 ## Reducing code duplication
 
-You might have noticed that the examples above duplicated a lot of boilerplate,
-like `stop` for every class, the no-op method `jump` for the `Jump` class, and
-`land` for the `Land` class. Luckily, TypeScript makes it easy to remove this
-boilerplate via inheritance:
+You might have noticed that the examples above duplicated some boilerplate,
+like the no-op method `jump` for the `Jump` class, and `land` for the `Land`
+class. It's not that bad for a small state machine, but for a large one, you
+might end up with quite a bit of boilerplate. Luckily, TypeScript makes it easy
+to remove this boilerplate via inheritance:
 
 ```typescript
 import { TransitionTo } from "st4t3";
 
 export default abstract class BaseState extends TransitionTo<"Jump" | "Land"> {
-  stop() {}
   jump() {}
   land() {}
 }

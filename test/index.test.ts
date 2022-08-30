@@ -2,8 +2,6 @@ import { vi, expect, it, describe, beforeEach } from "vitest";
 import { TransitionTo, Machine } from "../";
 
 abstract class Base extends TransitionTo<"Bar" | "Foo" | "Final"> {
-  start() {}
-  stop() {}
   test() {}
 }
 
@@ -27,8 +25,6 @@ class Bar extends Base {
 }
 
 class Final extends TransitionTo<never> {
-  start() {}
-  stop() {}
   test() {}
   next() {}
   end() {}

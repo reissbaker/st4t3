@@ -4,8 +4,8 @@
  */
 export abstract class TransitionTo<NextState extends string> {
   constructor(protected readonly machine: Machine<StateClassMap<NextState>>) {}
-  abstract start(): any;
-  abstract stop(): any;
+  start() {}
+  stop() {}
   transition(state: TransitionNamesOf<StateClassMap<NextState>>) {
     this.machine.transition(state);
   }

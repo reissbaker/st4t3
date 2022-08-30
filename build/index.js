@@ -9,6 +9,8 @@ class TransitionTo {
     constructor(machine) {
         this.machine = machine;
     }
+    start() { }
+    stop() { }
     transition(state) {
         this.machine.transition(state);
     }
