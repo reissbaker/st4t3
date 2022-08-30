@@ -177,6 +177,66 @@ machine.state("Land").once("start", () => {
 });
 ```
 
+## Nested state machines
+
+You can build nested (also called "heirarchical") state machines by creating
+new machines inside your states. For example:
+
+```typescript
+import { TransitionTo } from "st4t3";
+
+class InitialJump extends TransitionTo<"DoubleJump"> {
+  start() {
+    console.log("initial jump");
+  }
+
+  jump() {
+    // Double jumps are allowed
+    this.transition("DoubleJump");
+  }
+}
+
+class DoubleJump extends TransitionTo<never> {
+  start() {
+    console.log("double jump");
+  }
+
+  jump() {
+    // Triple jumps are not allowed: this is a no-op
+  }
+}
+
+export default class Jump extends TransitionTo<"Land"> {
+  private jumpMachine = new Machine("InitialJump", { InitialJump, DoubleJump });
+
+  start() {
+    // Since we set "InitialJump" as the initial state, calling start() will
+    // always first set the state to InitialJump
+    this.jumpMachine.start();
+  }
+
+  stop() {
+    // Cleanup
+    this.jumpMachine.stop();
+  }
+
+  jump() {
+    // If we've jumped once, this will print "double jump"
+    // Otherwise it's a no-op: you can't jump once you've double-jumped, until
+    // you land.
+    this.jumpMachine.jump();
+  }
+
+  land() {
+    this.transition("Land");
+  }
+}
+```
+
+Nested state machines, like all state machines, don't need to all be defined in
+the same file; it's completely valid to break apart the states into separate
+files.
+
 ## Type safety
 
 * When you create a new `Machine` instance, it checks for exhaustiveness at
