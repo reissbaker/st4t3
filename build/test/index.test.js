@@ -46,6 +46,7 @@ function machine() {
     });
     (0, vitest_1.it)("stop the current state when stopped", ({ machine }) => {
         const spy = vitest_1.vi.spyOn(machine.current(), "stop");
+        machine.start();
         machine.stop();
         (0, vitest_1.expect)(spy).toHaveBeenCalledOnce();
     });
@@ -56,16 +57,19 @@ function machine() {
     });
     (0, vitest_1.it)("allow transitions between states", ({ machine }) => {
         (0, vitest_1.expect)(machine.current()).toBeInstanceOf(Foo);
+        machine.start();
         machine.current().next();
         (0, vitest_1.expect)(machine.current()).toBeInstanceOf(Bar);
     });
     (0, vitest_1.it)("call stop on states when transitioning off of them", ({ machine }) => {
         const spy = vitest_1.vi.spyOn(machine.current(), "stop");
+        machine.start();
         machine.current().next();
         (0, vitest_1.expect)(spy).toHaveBeenCalledOnce();
     });
     (0, vitest_1.it)("call start on states when transitioning onto them", ({ machine }) => {
         const spy = vitest_1.vi.spyOn(machine.state("Bar"), "start");
+        machine.start();
         machine.current().next();
         (0, vitest_1.expect)(spy).toHaveBeenCalledOnce();
     });
@@ -74,6 +78,7 @@ function machine() {
         const startSpy = vitest_1.vi.spyOn(machine.state("Bar"), "start").mockImplementation(() => {
             (0, vitest_1.expect)(stopSpy).toHaveBeenCalledOnce();
         });
+        machine.start();
         machine.current().next();
         (0, vitest_1.expect)(startSpy).toHaveBeenCalledOnce();
     });
@@ -91,5 +96,73 @@ function machine() {
         const spy = vitest_1.vi.spyOn(machine.state("Foo"), "foo");
         machine.state("Foo").foo();
         (0, vitest_1.expect)(spy).toHaveBeenCalledOnce();
+    });
+    (0, vitest_1.it)("reset to the initial state after a new start call", ({ machine }) => {
+        machine.start();
+        (0, vitest_1.expect)(machine.current()).toBeInstanceOf(Foo);
+        machine.current().next();
+        (0, vitest_1.expect)(machine.current()).toBeInstanceOf(Bar);
+        machine.stop();
+        (0, vitest_1.expect)(machine.current()).toBeInstanceOf(Bar);
+        machine.start();
+        (0, vitest_1.expect)(machine.current()).toBeInstanceOf(Foo);
+    });
+    (0, vitest_1.it)("not reset on multiple start calls in a row", ({ machine }) => {
+        machine.start();
+        (0, vitest_1.expect)(machine.current()).toBeInstanceOf(Foo);
+        machine.current().next();
+        machine.start();
+        (0, vitest_1.expect)(machine.current()).toBeInstanceOf(Bar);
+    });
+    (0, vitest_1.it)("only call start() on states once for repeated start invocations", ({ machine }) => {
+        const spy = vitest_1.vi.spyOn(machine.current(), "start");
+        machine.start();
+        machine.start();
+        (0, vitest_1.expect)(spy).toHaveBeenCalledOnce();
+    });
+    (0, vitest_1.it)("only call stop() on states once for repeated stop invocations", ({ machine }) => {
+        const spy = vitest_1.vi.spyOn(machine.current(), "stop");
+        machine.start();
+        machine.stop();
+        machine.stop();
+        (0, vitest_1.expect)(spy).toHaveBeenCalledOnce();
+    });
+    (0, vitest_1.it)("not call stop() on states unless it already started", ({ machine }) => {
+        const spy = vitest_1.vi.spyOn(machine.current(), "stop");
+        machine.stop();
+        (0, vitest_1.expect)(spy).toHaveBeenCalledTimes(0);
+    });
+    (0, vitest_1.it)("call start again if stop has been called in between invocations", ({ machine }) => {
+        const spy = vitest_1.vi.spyOn(machine.current(), "start");
+        machine.start();
+        machine.stop();
+        machine.start();
+        (0, vitest_1.expect)(spy).toHaveBeenCalledTimes(2);
+    });
+    (0, vitest_1.it)("call stop again if start has been called in between invocations", ({ machine }) => {
+        const spy = vitest_1.vi.spyOn(machine.current(), "stop");
+        machine.start();
+        machine.stop();
+        machine.start();
+        machine.stop();
+        (0, vitest_1.expect)(spy).toHaveBeenCalledTimes(2);
+    });
+    (0, vitest_1.it)("not reset to the starting state if reset is false", ({ machine }) => {
+        machine.start();
+        (0, vitest_1.expect)(machine.current()).toBeInstanceOf(Foo);
+        machine.current().next();
+        (0, vitest_1.expect)(machine.current()).toBeInstanceOf(Bar);
+        machine.stop();
+        (0, vitest_1.expect)(machine.current()).toBeInstanceOf(Bar);
+        machine.start({ reset: false });
+        (0, vitest_1.expect)(machine.current()).toBeInstanceOf(Bar);
+    });
+    (0, vitest_1.it)("throw a useful error upon transition if it was never started", ({ machine }) => {
+        (0, vitest_1.expect)(() => machine.current().next()).toThrowError("State machine was never started");
+    });
+    (0, vitest_1.it)("throw a useful error upon transition if it was stopped", ({ machine }) => {
+        machine.start();
+        machine.stop();
+        (0, vitest_1.expect)(() => machine.current().next()).toThrowError("State machine is stopped");
     });
 });

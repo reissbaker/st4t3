@@ -2,8 +2,11 @@
  * The state class you need to extend
  * =================================================================================================
  */
+// Utility type to make defining constructors less of a hassle:
+export type ConstructorMachine<NextState extends string> = Machine<StateClassMap<NextState>>;
+
 export abstract class TransitionTo<NextState extends string> {
-  constructor(protected readonly machine: Machine<StateClassMap<NextState>>) {}
+  constructor(protected readonly machine: ConstructorMachine<NextState>) {}
   start() {}
   stop() {}
   transition(state: TransitionNamesOf<StateClassMap<NextState>>) {
@@ -57,29 +60,43 @@ export class Machine<Args extends StateClassMap<any>> {
   private stateMap: StateMap<Args>;
   private _current: InstanceType<Args[TransitionNamesOf<Args>]>;
   private _running = false;
+  private _everRan = false;
 
-  constructor(initial: keyof Args, args: Args & FullySpecifiedStateClassMap<Args>) {
+  constructor(
+    private readonly _initial: keyof Args,
+    args: Args & FullySpecifiedStateClassMap<Args>
+  ) {
     const map: Partial<StateMap<Args>> = {};
     for(const transition in args) {
       map[transition as unknown as TransitionNamesOf<Args>] = new args[transition](this) as any;
     }
     this.stateMap = map as StateMap<Args>;
-    this._current = this.stateMap[initial];
+    this._current = this.stateMap[_initial];
   }
 
-  start() {
+  start(args = {reset: true}) {
+    if(this._running) return;
+
+    this._everRan = true;
     this._running = true;
+
+    if(args.reset) this._current = this.stateMap[this._initial];
     this._current.start();
   }
 
   // Given a name, transition to that state
   transition(state: TransitionNamesOf<Args>) {
+    if(!this._everRan) throw new Error("State machine was never started");
+    if(!this._running) throw new Error("State machine is stopped");
+
     this._current.stop();
     this._current = this.stateMap[state];
     this._current.start();
   }
 
   stop() {
+    if(!this._running) return;
+
     this._running = false;
     this._current.stop();
   }

@@ -58,6 +58,7 @@ describe("State Machines", () => {
 
   it<Should>("stop the current state when stopped", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "stop");
+    machine.start();
     machine.stop();
     expect(spy).toHaveBeenCalledOnce();
   });
@@ -70,18 +71,21 @@ describe("State Machines", () => {
 
   it<Should>("allow transitions between states", ({ machine }) => {
     expect(machine.current()).toBeInstanceOf(Foo);
+    machine.start();
     machine.current().next();
     expect(machine.current()).toBeInstanceOf(Bar);
   });
 
   it<Should>("call stop on states when transitioning off of them", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "stop");
+    machine.start();
     machine.current().next();
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it<Should>("call start on states when transitioning onto them", ({ machine }) => {
     const spy = vi.spyOn(machine.state("Bar"), "start");
+    machine.start();
     machine.current().next();
     expect(spy).toHaveBeenCalledOnce();
   });
@@ -91,6 +95,7 @@ describe("State Machines", () => {
     const startSpy = vi.spyOn(machine.state("Bar"), "start").mockImplementation(() => {
       expect(stopSpy).toHaveBeenCalledOnce();
     });
+    machine.start();
     machine.current().next();
     expect(startSpy).toHaveBeenCalledOnce();
   });
@@ -111,5 +116,83 @@ describe("State Machines", () => {
     const spy = vi.spyOn(machine.state("Foo"), "foo");
     machine.state("Foo").foo();
     expect(spy).toHaveBeenCalledOnce();
+  });
+
+  it<Should>("reset to the initial state after a new start call", ({ machine }) => {
+    machine.start();
+    expect(machine.current()).toBeInstanceOf(Foo);
+    machine.current().next();
+    expect(machine.current()).toBeInstanceOf(Bar);
+    machine.stop();
+    expect(machine.current()).toBeInstanceOf(Bar);
+    machine.start();
+    expect(machine.current()).toBeInstanceOf(Foo);
+  });
+
+  it<Should>("not reset on multiple start calls in a row", ({ machine }) => {
+    machine.start();
+    expect(machine.current()).toBeInstanceOf(Foo);
+    machine.current().next();
+    machine.start();
+    expect(machine.current()).toBeInstanceOf(Bar);
+  });
+
+  it<Should>("only call start() on states once for repeated start invocations", ({ machine }) => {
+    const spy = vi.spyOn(machine.current(), "start");
+    machine.start();
+    machine.start();
+    expect(spy).toHaveBeenCalledOnce();
+  });
+
+  it<Should>("only call stop() on states once for repeated stop invocations", ({ machine }) => {
+    const spy = vi.spyOn(machine.current(), "stop");
+    machine.start();
+    machine.stop();
+    machine.stop();
+    expect(spy).toHaveBeenCalledOnce();
+  });
+
+  it<Should>("not call stop() on states unless it already started", ({ machine }) => {
+    const spy = vi.spyOn(machine.current(), "stop");
+    machine.stop();
+    expect(spy).toHaveBeenCalledTimes(0);
+  });
+
+  it<Should>("call start again if stop has been called in between invocations", ({ machine }) => {
+    const spy = vi.spyOn(machine.current(), "start");
+    machine.start();
+    machine.stop();
+    machine.start();
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it<Should>("call stop again if start has been called in between invocations", ({ machine }) => {
+    const spy = vi.spyOn(machine.current(), "stop");
+    machine.start();
+    machine.stop();
+    machine.start();
+    machine.stop();
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it<Should>("not reset to the starting state if reset is false", ({ machine }) => {
+    machine.start();
+    expect(machine.current()).toBeInstanceOf(Foo);
+    machine.current().next();
+    expect(machine.current()).toBeInstanceOf(Bar);
+    machine.stop();
+    expect(machine.current()).toBeInstanceOf(Bar);
+    machine.start({ reset: false });
+    expect(machine.current()).toBeInstanceOf(Bar);
+  });
+
+  it<Should>("throw a useful error upon transition if it was never started", ({ machine }) => {
+    expect(() => machine.current().next()).toThrowError("State machine was never started");
+  });
+
+  it<Should>("throw a useful error upon transition if it was stopped", ({ machine }) => {
+    machine.start();
+    machine.stop();
+    expect(() => machine.current().next()).toThrowError("State machine is stopped");
   });
 });
