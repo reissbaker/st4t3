@@ -1,10 +1,13 @@
 import { vi, expect, it, describe, beforeEach } from "vitest";
 import { State, Machine } from "../";
 
-class Foo extends State<"bar"|"final"> {
+abstract class Base extends State<"bar" | "foo" | "final"> {
   start() {}
   stop() {}
   test() {}
+}
+
+class Foo extends Base {
   next() {
     this.machine.transition("bar");
   }
@@ -13,10 +16,7 @@ class Foo extends State<"bar"|"final"> {
   }
 }
 
-class Bar extends State<"foo"|"final"> {
-  start() {}
-  stop() {}
-  test() {}
+class Bar extends Base {
   next() {
     this.machine.transition("foo");
   }
