@@ -1,8 +1,8 @@
 # st4t3
 
 An ultra-simple, tiny, typesafe state machine library designed to handle large
-state machines. It requires minimal memory allocations even for large state
-trees, and allows you to break large state machines into many files rather than
+state graphs. It requires minimal memory allocations even for large state
+graphs, and allows you to break large state machines into many files rather than
 forcing you to define the machine entirely in one file to get full type safety.
 
 ## Development
