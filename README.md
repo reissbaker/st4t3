@@ -222,8 +222,8 @@ export default class Jump extends TransitionTo<"Land"> {
 
   jump() {
     // If we've jumped once, this will print "double jump"
-    // Otherwise it's a no-op: you can't jump once you've double-jumped, until
-    // you land.
+    // Otherwise it's a no-op: you can't jump again after you've double-jumped,
+    // until you land.
     this.jumpMachine.jump();
   }
 
