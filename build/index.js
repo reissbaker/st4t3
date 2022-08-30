@@ -1,11 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Machine = exports.State = void 0;
+exports.Machine = exports.TransitionTo = void 0;
 /*
  * The state class you need to extend
  * =================================================================================================
  */
-class State {
+class TransitionTo {
     constructor(machine) {
         this.machine = machine;
     }
@@ -13,7 +13,7 @@ class State {
         this.machine.transition(state);
     }
 }
-exports.State = State;
+exports.TransitionTo = TransitionTo;
 ;
 /*
  * The machine class that runs and keeps track of states

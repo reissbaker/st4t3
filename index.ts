@@ -2,11 +2,11 @@
  * The state class you need to extend
  * =================================================================================================
  */
-export abstract class State<NextState extends string> {
+export abstract class TransitionTo<NextState extends string> {
   constructor(protected readonly machine: Machine<StateClassMap<NextState>>) {}
   abstract start(): any;
   abstract stop(): any;
-  transition(state: TransitionsOf<StateClassMap<NextState>>) {
+  transition(state: TransitionNamesOf<StateClassMap<NextState>>) {
     this.machine.transition(state);
   }
 };
@@ -17,7 +17,7 @@ export abstract class State<NextState extends string> {
  */
 
 // A constructor for a state
-type StateClass<T extends string> = { new(machine: Machine<any>): State<T> };
+type StateClass<T extends string> = { new(machine: Machine<any>): TransitionTo<T> };
 
 // The map of names to state classes you pass into the machine
 type StateClassMap<AllTransitions extends string> = {
@@ -28,10 +28,10 @@ type StateClassMap<AllTransitions extends string> = {
 // class map you pass into the machine constructor. Otherwise, the class map won't ensure that your
 // map is exhaustive; that is, you could have asked for transitions to states that don't exist in
 // the map.
-export type NextStateOf<T> = T extends State<infer Next> ? Next : never;
-export type StatesOf<SCM extends StateClassMap<any>> = SCM[TransitionsOf<SCM>];
+export type NextStateOf<T> = T extends TransitionTo<infer Next> ? Next : never;
+export type StatesOf<SCM extends StateClassMap<any>> = SCM[TransitionNamesOf<SCM>];
 export type LoadPreciseTransitions<SCM extends StateClassMap<any>> = NextStateOf<
-  InstanceType<SCM[TransitionsOf<SCM>]>
+  InstanceType<SCM[TransitionNamesOf<SCM>]>
 >;
 export type FullySpecifiedStateClassMap<SCM extends StateClassMap<any>> = {
   [K in LoadPreciseTransitions<SCM>]: StateClass<any>;
@@ -46,8 +46,8 @@ type StateMap<Map extends StateClassMap<any>> = {
 };
 
 // Grab the state transition names from either the state class map, or the machine
-export type TransitionsOf<M> = M extends StateClassMap<infer T> ? T :
-                               M extends Machine<infer A> ? TransitionsOf<A> : never;
+export type TransitionNamesOf<M> = M extends StateClassMap<infer T> ? T :
+                               M extends Machine<infer A> ? TransitionNamesOf<A> : never;
 
 /*
  * The machine class that runs and keeps track of states
@@ -55,13 +55,13 @@ export type TransitionsOf<M> = M extends StateClassMap<infer T> ? T :
  */
 export class Machine<Args extends StateClassMap<any>> {
   private stateMap: StateMap<Args>;
-  private _current: InstanceType<Args[TransitionsOf<Args>]>;
+  private _current: InstanceType<Args[TransitionNamesOf<Args>]>;
   private _running = false;
 
   constructor(initial: keyof Args, args: Args & FullySpecifiedStateClassMap<Args>) {
     const map: Partial<StateMap<Args>> = {};
     for(const transition in args) {
-      map[transition as unknown as TransitionsOf<Args>] = new args[transition](this) as any;
+      map[transition as unknown as TransitionNamesOf<Args>] = new args[transition](this) as any;
     }
     this.stateMap = map as StateMap<Args>;
     this._current = this.stateMap[initial];
@@ -73,7 +73,7 @@ export class Machine<Args extends StateClassMap<any>> {
   }
 
   // Given a name, transition to that state
-  transition(state: TransitionsOf<Args>) {
+  transition(state: TransitionNamesOf<Args>) {
     this._current.stop();
     this._current = this.stateMap[state];
     this._current.start();
@@ -90,12 +90,12 @@ export class Machine<Args extends StateClassMap<any>> {
   }
 
   // Returns the current state. Useful for calling state-specific methods beyond start/stop
-  current(): InstanceType<Args[TransitionsOf<Args>]> {
+  current(): InstanceType<Args[TransitionNamesOf<Args>]> {
     return this._current;
   }
 
   // Given a name, returns the state
-  state<T extends TransitionsOf<Args>>(name: T): StateMap<Args>[T] {
+  state<T extends TransitionNamesOf<Args>>(name: T): StateMap<Args>[T] {
     return this.stateMap[name];
   }
 }

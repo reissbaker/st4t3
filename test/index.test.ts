@@ -1,7 +1,7 @@
 import { vi, expect, it, describe, beforeEach } from "vitest";
-import { State, Machine } from "../";
+import { TransitionTo, Machine } from "../";
 
-abstract class Base extends State<"bar" | "foo" | "final"> {
+abstract class Base extends TransitionTo<"Bar" | "Foo" | "Final"> {
   start() {}
   stop() {}
   test() {}
@@ -9,24 +9,24 @@ abstract class Base extends State<"bar" | "foo" | "final"> {
 
 class Foo extends Base {
   next() {
-    this.transition("bar");
+    this.transition("Bar");
   }
   end() {
-    this.transition("final");
+    this.transition("Final");
   }
   foo() {}
 }
 
 class Bar extends Base {
   next() {
-    this.transition("foo");
+    this.transition("Foo");
   }
   end() {
-    this.transition("final");
+    this.transition("Final");
   }
 }
 
-class Final extends State<never> {
+class Final extends TransitionTo<never> {
   start() {}
   stop() {}
   test() {}
@@ -35,10 +35,8 @@ class Final extends State<never> {
 }
 
 function machine() {
-  return new Machine("foo", {
-    foo: Foo,
-    bar: Bar,
-    final: Final,
+  return new Machine("Foo", {
+    Foo, Bar, Final
   });
 }
 
@@ -87,14 +85,14 @@ describe("State Machines", () => {
   });
 
   it<Should>("call start on states when transitioning onto them", ({ machine }) => {
-    const spy = vi.spyOn(machine.state("bar"), "start");
+    const spy = vi.spyOn(machine.state("Bar"), "start");
     machine.current().next();
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it<Should>("call stop on the old state before calling start on the new state", ({ machine }) => {
     const stopSpy = vi.spyOn(machine.current(), "stop");
-    const startSpy = vi.spyOn(machine.state("bar"), "start").mockImplementation(() => {
+    const startSpy = vi.spyOn(machine.state("Bar"), "start").mockImplementation(() => {
       expect(stopSpy).toHaveBeenCalledOnce();
     });
     machine.current().next();
@@ -114,8 +112,8 @@ describe("State Machines", () => {
   });
 
   it<Should>("allow calling state-specific functions when accessing states", ({ machine }) => {
-    const spy = vi.spyOn(machine.state("foo"), "foo");
-    machine.state("foo").foo();
+    const spy = vi.spyOn(machine.state("Foo"), "foo");
+    machine.state("Foo").foo();
     expect(spy).toHaveBeenCalledOnce();
   });
 });

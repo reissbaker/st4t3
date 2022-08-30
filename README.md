@@ -13,14 +13,15 @@ report with `npm run coverage`.
 ## API
 
 Every state machine is composed of two parts: a set of states, and the machine
-that runs the states. To define a state, you extend the abstract `State` class:
+that runs the states. To define a state, you extend the abstract `TransitionTo`
+class:
 
 ```typescript
-import { State } from "st4t3";
+import { TransitionTo } from "st4t3";
 
 // You must pass the names of any states you plan on transitioning to in the
 // class definition, like so:
-export default class Jump extends State<"Land"> {
+export default class Jump extends TransitionTo<"Land"> {
   // You must implement start() and stop()
   start() {
     console.log("jumping!");
@@ -32,7 +33,7 @@ export default class Jump extends State<"Land"> {
     // If you're already jumping, do nothing
   }
   land() {
-    // Since you declared you can transition to the "land" state, you can call
+    // Since you declared you can transition to the "Land" state, you can call
     // that here.
     this.transition("Land");
   }
@@ -42,9 +43,9 @@ export default class Jump extends State<"Land"> {
 Now let's look at what a `Land` state would look like:
 
 ```typescript
-import { State } from "st4t3";
+import { TransitionTo } from "st4t3";
 
-export default class Land extends State<"Jump"> {
+export default class Land extends TransitionTo<"Jump"> {
   start() {
     console.log("landed.");
   }
@@ -87,9 +88,9 @@ like `stop` for every class, the no-op method `jump` for the `Jump` class, and
 boilerplate via inheritance:
 
 ```typescript
-import { State } from "st4t3";
+import { TransitionTo } from "st4t3";
 
-export default abstract class BaseState extends State<"Jump" | "Land"> {
+export default abstract class BaseState extends TransitionTo<"Jump" | "Land"> {
   stop() {}
   jump() {}
   land() {}
@@ -127,9 +128,9 @@ export default class Land extends BaseState {
 ## What if I want a state that never transitions?
 
 ```typescript
-import { State } from "st4t3";
+import { TransitionTo } from "st4t3";
 
-export default Final extends State<never> {
+export default Final extends TransitionTo<never> {
   start() {}
   stop() {}
 }
