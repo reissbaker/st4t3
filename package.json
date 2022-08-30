@@ -6,7 +6,7 @@
   "scripts": {
     "test": "vitest",
     "coverage": "rm -rf ./coverage && vitest run --coverage",
-    "build": "tsc"
+    "build": "rm -rf ./build && tsc"
   },
   "author": "Matt Baker",
   "license": "ISC",
