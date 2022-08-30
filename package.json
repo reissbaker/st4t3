@@ -5,7 +5,8 @@
   "main": "build/index.js",
   "scripts": {
     "test": "vitest",
-    "coverage": "rm -rf ./coverage && vitest run --coverage"
+    "coverage": "rm -rf ./coverage && vitest run --coverage",
+    "build": "tsc"
   },
   "author": "Matt Baker",
   "license": "ISC",
