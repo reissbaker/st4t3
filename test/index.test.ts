@@ -9,20 +9,20 @@ abstract class Base extends State<"bar" | "foo" | "final"> {
 
 class Foo extends Base {
   next() {
-    this.machine.transition("bar");
+    this.transition("bar");
   }
   end() {
-    this.machine.transition("final");
+    this.transition("final");
   }
   foo() {}
 }
 
 class Bar extends Base {
   next() {
-    this.machine.transition("foo");
+    this.transition("foo");
   }
   end() {
-    this.machine.transition("final");
+    this.transition("final");
   }
 }
 

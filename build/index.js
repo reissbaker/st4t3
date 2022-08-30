@@ -9,6 +9,9 @@ class State {
     constructor(machine) {
         this.machine = machine;
     }
+    transition(state) {
+        this.machine.transition(state);
+    }
 }
 exports.State = State;
 ;
