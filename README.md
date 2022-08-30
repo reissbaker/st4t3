@@ -144,10 +144,11 @@ export default Final extends TransitionTo<never> {
   compile time: you can't accidentally forget to include a state that one of
   your other states needs to transition to.
 * Any method defined on *all* your states is callable from `machine.current()`.
-  If you want to call a method on a specific state, you can call it from
-  `machine.state("state name goes here")`, although generally I wouldn't
-  recommend calling methods on non-current states &mdash; otherwise, why are
-  you using a state machine?
+  You don't need any special type definitions to make this happen; it's
+  automatically inferred. If you want to call a method on a specific state, you
+  can call it from `machine.state("state name goes here")`, although generally
+  I wouldn't recommend calling methods on non-current states &mdash; otherwise,
+  why are you using a state machine?
 * A state can only transition to the states it names in its class definition.
   As a result, you have to use string literals &mdash; the compiler can't
   analyze dynamic strings passed in at runtime. That being said, this
