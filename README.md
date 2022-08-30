@@ -4,7 +4,7 @@ An ultra-simple, tiny, typesafe state machine library designed to handle large
 state graphs for latency-sensitive applications. It requires minimal memory
 allocations, and allows you to break large state machines into many files
 rather than forcing you to define the machine entirely in one file to get full
-type safety. There are no runtime dependencies and the code is <100 lines of
+type safety. There are no runtime dependencies and the code is <150 lines of
 TypeScript, excluding comments.
 
 ## Development
@@ -138,6 +138,43 @@ import { TransitionTo } from "st4t3";
 
 export default Final extends TransitionTo<never> {
 }
+```
+
+## Events
+
+States emit events when they start and stop, and you can listen to them via a
+slimmed-down version of the NodeJS EventEmitter API.
+
+### `on('start' | 'stop', callback)`
+
+Runs the callback every time either `start` or `stop` is called. For example:
+
+```typescript
+machine.state("Land").on("start", () => {
+  // ...
+});
+```
+
+### `off('start' | 'stop', callback)`
+
+Removes the callback from being registered to listen to either the `start` or
+`stop` event. Returns `true` if the callback was previously registered and thus
+removed; returns `false` otherwise, indicating the callback was never
+registered in the first place. For example:
+
+```typescript
+machine.state("Land").off("start", callback);
+```
+
+### `once('start' | 'stop', callback)`
+
+Runs the callback the first time either `start` or `stop` is called, and then
+removes it from the listener list. For example:
+
+```typescript
+machine.state("Land").once("start", () => {
+  // ...
+});
 ```
 
 ## Type safety

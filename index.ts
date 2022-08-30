@@ -1,14 +1,57 @@
 /*
+ * Event system
+ * =================================================================================================
+ */
+
+type Event = "start" | "stop";
+export class EventEmitter {
+  private readonly listeners: { [K in Event]: Array<() => any> } = {
+    start: [],
+    stop: [],
+  };
+
+  on(event: Event, cb: () => any) {
+    this.listeners[event].push(cb);
+    return cb;
+  }
+
+  off(event: Event, cb: () => any) {
+    const index = this.listeners[event].indexOf(cb);
+    if(index < 0) return false;
+    this.listeners[event].splice(index, 1);
+    return true;
+  }
+
+  once(event: Event, cb: () => any) {
+    const wrapped = () => {
+      cb();
+      this.off(event, wrapped);
+    };
+    return this.on(event, wrapped);
+  }
+
+  protected emit(event: Event) {
+    for(const listener of this.listeners[event]) {
+      listener();
+    }
+  }
+}
+
+/*
  * The state class you need to extend
  * =================================================================================================
  */
 // Utility type to make defining constructors less of a hassle:
 export type ConstructorMachine<NextState extends string> = Machine<StateClassMap<NextState>>;
 
-export abstract class TransitionTo<NextState extends string> {
-  constructor(protected readonly machine: ConstructorMachine<NextState>) {}
-  start() {}
-  stop() {}
+export abstract class TransitionTo<NextState extends string> extends EventEmitter {
+  constructor(protected readonly machine: ConstructorMachine<NextState>) { super(); }
+
+  _start() { this.start(); this.emit("start"); }
+  protected start() {}
+  _stop() { this.stop(); this.emit("stop"); }
+  protected stop() {}
+
   transition(state: TransitionNamesOf<StateClassMap<NextState>>) {
     this.machine.transition(state);
   }
@@ -81,7 +124,7 @@ export class Machine<Args extends StateClassMap<any>> {
     this._running = true;
 
     if(args.reset) this._current = this.stateMap[this._initial];
-    this._current.start();
+    this._current._start();
   }
 
   // Given a name, transition to that state
@@ -89,16 +132,16 @@ export class Machine<Args extends StateClassMap<any>> {
     if(!this._everRan) throw new Error("State machine was never started");
     if(!this._running) throw new Error("State machine is stopped");
 
-    this._current.stop();
+    this._current._stop();
     this._current = this.stateMap[state];
-    this._current.start();
+    this._current._start();
   }
 
   stop() {
     if(!this._running) return;
 
     this._running = false;
-    this._current.stop();
+    this._current._stop();
   }
 
   // This will return true after start has been called, until stop gets called
