@@ -124,7 +124,7 @@ export default class Land extends BaseState {
 }
 ```
 
-## What if I want a state that transitions to nothing?
+## What if I want a state that never transitions?
 
 ```typescript
 import { State } from "st4t3";
