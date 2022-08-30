@@ -2,21 +2,21 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const vitest_1 = require("vitest");
 const __1 = require("../");
-class Foo extends __1.State {
+class Base extends __1.State {
     start() { }
     stop() { }
     test() { }
+}
+class Foo extends Base {
     next() {
         this.machine.transition("bar");
     }
     end() {
         this.machine.transition("final");
     }
+    foo() { }
 }
-class Bar extends __1.State {
-    start() { }
-    stop() { }
-    test() { }
+class Bar extends Base {
     next() {
         this.machine.transition("foo");
     }
@@ -82,5 +82,20 @@ function machine() {
         });
         machine.current().next();
         (0, vitest_1.expect)(startSpy).toHaveBeenCalledOnce();
+    });
+    (0, vitest_1.it)("say it's running after being started", ({ machine }) => {
+        (0, vitest_1.expect)(machine.running()).toEqual(false);
+        machine.start();
+        (0, vitest_1.expect)(machine.running()).toEqual(true);
+    });
+    (0, vitest_1.it)("say it's not running after being stopped", ({ machine }) => {
+        machine.start();
+        machine.stop();
+        (0, vitest_1.expect)(machine.running()).toEqual(false);
+    });
+    (0, vitest_1.it)("allow calling state-specific functions when accessing states", ({ machine }) => {
+        const spy = vitest_1.vi.spyOn(machine.state("foo"), "foo");
+        machine.state("foo").foo();
+        (0, vitest_1.expect)(spy).toHaveBeenCalledOnce();
     });
 });
