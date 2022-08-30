@@ -135,8 +135,6 @@ export default class Land extends BaseState {
 import { TransitionTo } from "st4t3";
 
 export default Final extends TransitionTo<never> {
-  start() {}
-  stop() {}
 }
 ```
 
