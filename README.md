@@ -81,7 +81,7 @@ const machine = new Machine("Land", {
 machine.start(); // Prints "landed."
 machine.current().jump(); // Prints "jumped!"
 machine.current().jump(); // No-op, since Jump#jump() is a no-op
-machine.current().land(); // Prints "stopped jumping" and then "landed."
+machine.current().land(); // Prints "stopping jumping" and then "landed."
 ```
 
 ## Reducing code duplication
@@ -142,9 +142,9 @@ export default Final extends TransitionTo<never> {
 
 ## Type safety
 
-* When you create a new `Machine` instance, it checks for exhaustiveness: you
-  can't accidentally forget to include a state that one of your other states
-  needs to transition to.
+* When you create a new `Machine` instance, it checks for exhaustiveness at
+  compile time: you can't accidentally forget to include a state that one of
+  your other states needs to transition to.
 * Any method defined on *all* your states is callable from `machine.current()`.
   If you want to call a method on a specific state, you can call it from
   `machine.state("state name goes here")`, although generally I wouldn't
