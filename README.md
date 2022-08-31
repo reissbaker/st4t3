@@ -84,8 +84,12 @@ import Jump from "./jump";
 import Land from "./land";
 
 // Pass in the initial state name, as well as the state classes themselves:
-const machine = new Machine("Land", {}, {
-  Jump, Land
+const machine = new Machine({
+  initial: "Land",
+  data: {},
+  states: {
+    Jump, Land
+  }
 });
 
 machine.start(); // Prints "landed."
@@ -179,11 +183,15 @@ class Land extends TransitionTo<'Jump', { bounceOnLand: boolean }> {
 
 // You have to pass in all of the data required here. The type system checks
 // that all specified data is actually passed in.
-const machine = new Machine("Land", {
-  bounceOnLand: false,
-  jumpPower: 5.6,
-}, {
-  Jump, Land,
+const machine = new Machine({
+  initial: "Land",
+  data: {
+    bounceOnLand: false,
+    jumpPower: 5.6,
+  },
+  states: {
+    Jump, Land,
+  },
 });
 
 machine.start(); // Prints "Unbouncy land"
@@ -257,8 +265,10 @@ class DoubleJump extends TransitionTo<never> {
 }
 
 export default class Jump extends TransitionTo<"Land"> {
-  private jumpMachine = new Machine("InitialJump", {}, {
-    InitialJump, DoubleJump
+  private jumpMachine = new Machine({
+    initial: "InitialJump",
+    data: {},
+    states: { InitialJump, DoubleJump },
   });
 
   start() {
@@ -314,7 +324,11 @@ constructor:
 
 ```typescript
 // Jump and Land are allocated here:
-const machine = new Machine("Land", { Jump, Land });
+const machine = new Machine({
+  initial: "Land",
+  data: {},
+  states: { Jump, Land }
+});
 ```
 
 These state instances are long-lived: the `Machine` class will reuse them and

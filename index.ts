@@ -127,18 +127,26 @@ export class Machine<Args extends StateClassMap<any>> {
   private _current: InstanceType<Args[TransitionNamesOf<Args>]>;
   private _running = false;
   private _everRan = false;
+  readonly data: MachineDataFromStateClasses<Args>;
+  private readonly _initial: keyof Args;
 
   constructor(
-    private readonly _initial: keyof Args,
-    readonly machineData: MachineDataFromStateClasses<Args>,
-    args: Args & FullySpecifiedStateClassMap<Args>
+    input: {
+      initial: keyof Args,
+      data: MachineDataFromStateClasses<Args>,
+      states: Args & FullySpecifiedStateClassMap<Args>,
+    }
   ) {
     const map: Partial<StateMap<Args>> = {};
+    const args = input.states;
+    this.data = input.data;
+    this._initial = input.initial;
+
     for(const transition in args) {
       map[transition as unknown as TransitionNamesOf<Args>] = new args[transition](this) as any;
     }
     this.stateMap = map as StateMap<Args>;
-    this._current = this.stateMap[_initial];
+    this._current = this.stateMap[this._initial];
   }
 
   start(args = {reset: true}) {
@@ -148,7 +156,7 @@ export class Machine<Args extends StateClassMap<any>> {
     this._running = true;
 
     if(args.reset) this._current = this.stateMap[this._initial];
-    this._current._start(this.machineData);
+    this._current._start(this.data);
   }
 
   // Given a name, transition to that state
@@ -158,7 +166,7 @@ export class Machine<Args extends StateClassMap<any>> {
 
     this._current._stop();
     this._current = this.stateMap[state];
-    this._current._start(this.machineData);
+    this._current._start(this.data);
   }
 
   stop() {
