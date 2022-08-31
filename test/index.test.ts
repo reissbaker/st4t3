@@ -31,17 +31,17 @@ class Final extends TransitionTo<never> {
 }
 
 function machine() {
-  return new Machine("Foo", {
+  return new Machine("Foo", {}, {
     Foo, Bar, Final
   });
 }
 
-type MachineType = ReturnType<typeof machine>;
-type Should = {
-  machine: MachineType,
-};
-
 describe("State Machines", () => {
+  type MachineType = ReturnType<typeof machine>;
+  type Should = {
+    machine: MachineType,
+  };
+
   beforeEach<Should>(ctx => {
     ctx.machine = machine();
   });
@@ -275,5 +275,62 @@ describe("State Machines", () => {
     machine.start();
     expect(called).toEqual(1);
     expect(machine.current().off("start", cb)).toEqual(false);
+  });
+});
+
+class Jump extends TransitionTo<'Land', { allowDoubleJumps: boolean }> {
+  jump() {}
+  land() {
+    this.transition('Land');
+  }
+}
+
+class Land extends TransitionTo<'Jump', { bounceOnLand: boolean }> {
+  land() {}
+  jump() {
+    this.transition('Jump');
+  }
+}
+
+function jumpMachine() {
+  return new Machine('Land', { allowDoubleJumps: false, bounceOnLand: true }, {
+    Jump, Land
+  });
+}
+
+describe("State machines with initial state args", () => {
+  type MachineType = ReturnType<typeof jumpMachine>;
+  type Should = {
+    machine: MachineType,
+  };
+
+  beforeEach<Should>((ctx) => {
+    ctx.machine = jumpMachine();
+  });
+
+  it<Should>("pass the initial state args into the state on start()", ({ machine }) => {
+    const spy = vi.spyOn(machine.current(), "_start");
+    machine.start();
+    expect(spy).toHaveBeenCalledWith(machine.machineData);
+  });
+
+  it<Should>("continue passing the state args into start() calls on transition", ({ machine }) => {
+    const spy = vi.spyOn(machine.state("Jump"), "_start");
+    machine.start();
+    expect(spy).toHaveBeenCalledTimes(0);
+    machine.current().jump();
+    expect(spy).toHaveBeenCalledWith(machine.machineData);
+  });
+
+  it<Should>("pass the state args into subsequent start() calls after a stop", ({ machine }) => {
+    const spy = vi.spyOn(machine.current(), "_start");
+    machine.start();
+    expect(spy).toHaveBeenCalledWith(machine.machineData);
+    machine.stop();
+    machine.start();
+    expect(spy).toHaveBeenNthCalledWith(2, machine.machineData);
+    machine.stop();
+    machine.start();
+    expect(spy).toHaveBeenNthCalledWith(3, machine.machineData);
   });
 });

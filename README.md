@@ -4,11 +4,12 @@ An ultra-simple, tiny, typesafe state machine library designed to handle large
 state graphs for latency-sensitive applications. It requires minimal memory
 allocations, and allows you to break large state machines into many files
 rather than forcing you to define the machine entirely in one file to get full
-type safety. There are no runtime dependencies and the code is <110 lines of
+type safety. There are no runtime dependencies and the code is <150 lines of
 TypeScript, excluding comments.
 
 * [Development](#development)
 * [Getting started](#getting-started)
+* [Injecting data](#injecting-data)
 * [Events](#events)
 * [Nested state machines](#nested-state-machines)
 * [Type safety](#type-safety)
@@ -83,7 +84,7 @@ import Jump from "./jump";
 import Land from "./land";
 
 // Pass in the initial state name, as well as the state classes themselves:
-const machine = new Machine("Land", {
+const machine = new Machine("Land", {}, {
   Jump, Land
 });
 
@@ -145,6 +146,48 @@ import { TransitionTo } from "st4t3";
 
 export default Final extends TransitionTo<never> {
 }
+```
+
+# Injecting data
+
+Sometimes, you may want your set of states to accept some sort of configuration
+data, or to be able to pass some kind of top-level data from your program into
+the states so they can take action on it. States can optionally define data
+they require to be passed into their `start()` calls, and at `Machine`
+instantiation time you'll need to provide the data that the states require. For
+example:
+
+```typescript
+class Jump extends TransitionTo<'Land', { jumpPower: number }> {
+  start(data: { jumpPower: number }) {
+    console.log(`Jumped with power ${jumpPower}`);
+  }
+
+  jump() {}
+  land() { this.transition('Land'); }
+}
+
+class Land extends TransitionTo<'Jump', { bounceOnLand: boolean }> {
+  start(data: { bounceOnLand: boolean }) {
+    if(data.bounceOnLand) console.log("Bouncy land");
+    else console.log("Unbouncy land");
+  }
+
+  jump() { this.transition("Jump"); }
+  land() {}
+}
+
+// You have to pass in all of the data required here. The type system checks
+// that all specified data is actually passed in.
+const machine = new Machine("Land", {
+  bounceOnLand: false,
+  jumpPower: 5.6,
+}, {
+  Jump, Land,
+});
+
+machine.start(); // Prints "Unbouncy land"
+machine.jump();  // Prints "Jumped with power 5.6"
 ```
 
 # Events
@@ -214,7 +257,9 @@ class DoubleJump extends TransitionTo<never> {
 }
 
 export default class Jump extends TransitionTo<"Land"> {
-  private jumpMachine = new Machine("InitialJump", { InitialJump, DoubleJump });
+  private jumpMachine = new Machine("InitialJump", {}, {
+    InitialJump, DoubleJump
+  });
 
   start() {
     // Since we set "InitialJump" as the initial state, calling start() will
