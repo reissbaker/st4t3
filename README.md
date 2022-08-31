@@ -164,7 +164,7 @@ data that the states require. For example:
 ```typescript
 type JumpProps = { jumpPower: number };
 class Jump extends TransitionTo<'Land', JumpProps> {
-  start({ jumpPower }: Props) {
+  start({ jumpPower }: JumpProps) {
     console.log(`Jumped with power ${jumpPower}`);
   }
 
@@ -174,7 +174,7 @@ class Jump extends TransitionTo<'Land', JumpProps> {
 
 type LandProps = { bounceOnLand: boolean };
 class Land extends TransitionTo<'Jump', LandProps> {
-  start({ bounceOnLand }: Props) {
+  start({ bounceOnLand }: LandProps) {
     if(bounceOnLand) console.log("Bouncy land");
     else console.log("Unbouncy land");
   }
