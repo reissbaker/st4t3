@@ -333,6 +333,22 @@ describe("State machines with initial state args", () => {
     expect(spy).toHaveBeenCalledWith(machine.props);
   });
 
+  it<Should>("pass the state args into stop() calls on transition", ({ machine }) => {
+    const spy = vi.spyOn(machine.current(), "_stop");
+    machine.start();
+    expect(spy).toHaveBeenCalledTimes(0);
+    machine.current().jump();
+    expect(spy).toHaveBeenCalledWith(machine.props);
+  });
+
+  it<Should>("pass the state args into stop() calls on stop", ({ machine }) => {
+    const spy = vi.spyOn(machine.current(), "_stop");
+    machine.start();
+    expect(spy).toHaveBeenCalledTimes(0);
+    machine.stop();
+    expect(spy).toHaveBeenCalledWith(machine.props);
+  });
+
   it<Should>("pass the state args into subsequent start() calls after a stop", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_start");
     machine.start();
