@@ -50,7 +50,7 @@ export default class Jump extends TransitionTo<"Land"> {
   land() {
     // Since you declared you can transition to the "Land" state, you can call
     // that here.
-    this.transition("Land");
+    this.transitionTo("Land");
   }
 }
 ```
@@ -70,7 +70,7 @@ export default class Land extends TransitionTo<"Jump"> {
     // If you're already landed, do nothing
   }
   jump() {
-    this.transition("Jump");
+    this.transitionTo("Jump");
   }
 }
 ```
@@ -125,7 +125,7 @@ export default class Jump extends BaseState {
     console.log("jumped!");
   }
   land() {
-    this.transition("Land");
+    this.transitionTo("Land");
   }
 }
 ```
@@ -138,7 +138,7 @@ export default class Land extends BaseState {
     console.log("landed.");
   }
   jump() {
-    this.transition("Jump");
+    this.transitionTo("Jump");
   }
 }
 ```
@@ -169,7 +169,7 @@ class Jump extends TransitionTo<'Land', JumpProps> {
   }
 
   jump() {}
-  land() { this.transition('Land'); }
+  land() { this.transitionTo('Land'); }
 }
 
 type LandProps = { bounceOnLand: boolean };
@@ -179,7 +179,7 @@ class Land extends TransitionTo<'Jump', LandProps> {
     else console.log("Unbouncy land");
   }
 
-  jump() { this.transition("Jump"); }
+  jump() { this.transitionTo("Jump"); }
   land() {}
 }
 
@@ -252,7 +252,7 @@ class InitialJump extends TransitionTo<"DoubleJump"> {
 
   jump() {
     // Double jumps are allowed
-    this.transition("DoubleJump");
+    this.transitionTo("DoubleJump");
   }
 }
 
@@ -292,7 +292,7 @@ export default class Jump extends TransitionTo<"Land"> {
   }
 
   land() {
-    this.transition("Land");
+    this.transitionTo("Land");
   }
 }
 ```

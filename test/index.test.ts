@@ -1,5 +1,5 @@
 import { vi, expect, it, describe, beforeEach } from "vitest";
-import { TransitionTo, Machine } from "../";
+import { TransitionTo, Machine } from "../index";
 
 abstract class Base extends TransitionTo<"Bar" | "Foo" | "Final"> {
   test() {}
@@ -7,20 +7,20 @@ abstract class Base extends TransitionTo<"Bar" | "Foo" | "Final"> {
 
 class Foo extends Base {
   next() {
-    this.transition("Bar");
+    this.transitionTo("Bar");
   }
   end() {
-    this.transition("Final");
+    this.transitionTo("Final");
   }
   foo() {}
 }
 
 class Bar extends Base {
   next() {
-    this.transition("Foo");
+    this.transitionTo("Foo");
   }
   end() {
-    this.transition("Final");
+    this.transitionTo("Final");
   }
 }
 
@@ -285,14 +285,14 @@ describe("State Machines", () => {
 class Jump extends TransitionTo<'Land', { allowDoubleJumps: boolean }> {
   jump() {}
   land() {
-    this.transition('Land');
+    this.transitionTo('Land');
   }
 }
 
 class Land extends TransitionTo<'Jump', { bounceOnLand: boolean }> {
   land() {}
   jump() {
-    this.transition('Jump');
+    this.transitionTo('Jump');
   }
 }
 

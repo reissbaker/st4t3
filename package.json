@@ -4,6 +4,7 @@
   "description": "An ultra-simple, tiny-but-powerful, typesafe state machine library",
   "main": "build/index.js",
   "types": "build/index.d.ts",
+  "files": "build/**/*",
   "scripts": {
     "test": "vitest",
     "coverage": "rm -rf ./coverage && vitest run --coverage",

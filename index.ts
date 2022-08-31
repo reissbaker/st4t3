@@ -53,8 +53,8 @@ export abstract class TransitionTo<NextState extends string, Props extends Machi
   _stop() { this.stop(); this.emit("stop"); }
   protected stop() {}
 
-  transition(state: TransitionNamesOf<StateClassMap<NextState>>) {
-    this.machine.transition(state);
+  transitionTo(state: TransitionNamesOf<StateClassMap<NextState>>) {
+    this.machine.transitionTo(state);
   }
 };
 
@@ -160,7 +160,7 @@ export class Machine<Args extends StateClassMap<any>> {
   }
 
   // Given a name, transition to that state
-  transition(state: TransitionNamesOf<Args>) {
+  transitionTo(state: TransitionNamesOf<Args>) {
     if(!this._everRan) throw new Error("State machine was never started");
     if(!this._running) throw new Error("State machine is stopped");
 
