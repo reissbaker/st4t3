@@ -156,7 +156,7 @@ export default Final extends TransitionTo<never> {
 
 Sometimes, you may want your set of states to accept some sort of configuration
 data, or to be able to pass some kind of top-level data from your program into
-the states so they can take action on it &emdash; similar to React's `props`.
+the states so they can take action on it &mdash; similar to React's `props`.
 States can optionally define data they require to be passed into their
 `start()` calls, and at `Machine` instantiation time you'll need to provide the
 data that the states require. For example:
