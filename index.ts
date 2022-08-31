@@ -43,13 +43,13 @@ export class EventEmitter {
  */
 // Utility type to make defining constructors less of a hassle:
 export type ConstructorMachine<NextState extends string> = Machine<StateClassMap<NextState>>;
-export type MachineData = { [key: string]: any }
+export type MachineProps = { [key: string]: any }
 
-export abstract class TransitionTo<NextState extends string, Data extends MachineData = {}> extends EventEmitter {
+export abstract class TransitionTo<NextState extends string, Props extends MachineProps = {}> extends EventEmitter {
   constructor(protected readonly machine: ConstructorMachine<NextState>) { super(); }
 
-  _start(data: Data) { this.start(data); this.emit("start"); }
-  protected start(_: Data) {}
+  _start(data: Props) { this.start(data); this.emit("start"); }
+  protected start(_: Props) {}
   _stop() { this.stop(); this.emit("stop"); }
   protected stop() {}
 
@@ -64,7 +64,7 @@ export abstract class TransitionTo<NextState extends string, Data extends Machin
  */
 
 // A constructor for a state
-type StateClass<T extends string, D extends MachineData> = {
+type StateClass<T extends string, D extends MachineProps> = {
   new(machine: Machine<any>): TransitionTo<T, D>
 };
 
@@ -89,20 +89,20 @@ export type FullySpecifiedStateClassMap<SCM extends StateClassMap<any>> = {
 // The end goal of this is the final accessor: a way to figure out what data needs to be passed to a
 // start() function, given a state class map.
 //
-// First, we get all of the MachineData from each state class, and return a map of {[name]: data}
-export type MachineDataByStates<T extends StateClassMap<any>> = {
-  [K in keyof T]: T[K] extends StateClass<any, infer Data> ? Data : never;
+// First, we get all of the MachineProps from each state class, and return a map of {[name]: data}
+export type MachinePropsByStates<T extends StateClassMap<any>> = {
+  [K in keyof T]: T[K] extends StateClass<any, infer Props> ? Props : never;
 }
 // Next, we get the union of all of the data from that map
-export type MachineDataUnion<T extends { [key: string]: MachineData }> = T[keyof T];
+export type MachinePropsUnion<T extends { [key: string]: MachineProps }> = T[keyof T];
 // This crazy type puts a union type into a contravariant type position, forcing it into an
 // intersection type
 export type UnionToIntersection<T> =
   (T extends any ? (contra: T) => void : never) extends ((contra: infer I) => void) ? I : never;
 // Tie it all together to get the intersection of all machine data from the state class map:
-export type MachineDataFromStateClasses<T extends StateClassMap<any>> = UnionToIntersection<
-  MachineDataUnion<
-    MachineDataByStates<T>
+export type MachinePropsFromStateClasses<T extends StateClassMap<any>> = UnionToIntersection<
+  MachinePropsUnion<
+    MachinePropsByStates<T>
   >
 >;
 
@@ -127,19 +127,19 @@ export class Machine<Args extends StateClassMap<any>> {
   private _current: InstanceType<Args[TransitionNamesOf<Args>]>;
   private _running = false;
   private _everRan = false;
-  readonly data: MachineDataFromStateClasses<Args>;
+  readonly props: MachinePropsFromStateClasses<Args>;
   private readonly _initial: keyof Args;
 
   constructor(
     input: {
       initial: keyof Args,
-      data: MachineDataFromStateClasses<Args>,
+      props: MachinePropsFromStateClasses<Args>,
       states: Args & FullySpecifiedStateClassMap<Args>,
     }
   ) {
     const map: Partial<StateMap<Args>> = {};
     const args = input.states;
-    this.data = input.data;
+    this.props = input.props;
     this._initial = input.initial;
 
     for(const transition in args) {
@@ -156,7 +156,7 @@ export class Machine<Args extends StateClassMap<any>> {
     this._running = true;
 
     if(args.reset) this._current = this.stateMap[this._initial];
-    this._current._start(this.data);
+    this._current._start(this.props);
   }
 
   // Given a name, transition to that state
@@ -166,7 +166,7 @@ export class Machine<Args extends StateClassMap<any>> {
 
     this._current._stop();
     this._current = this.stateMap[state];
-    this._current._start(this.data);
+    this._current._start(this.props);
   }
 
   stop() {

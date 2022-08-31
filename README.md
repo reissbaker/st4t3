@@ -9,7 +9,7 @@ TypeScript, excluding comments.
 
 * [Development](#development)
 * [Getting started](#getting-started)
-* [Injecting data](#injecting-data)
+* [Injecting props](#injecting-props)
 * [Events](#events)
 * [Nested state machines](#nested-state-machines)
 * [Type safety](#type-safety)
@@ -86,7 +86,7 @@ import Land from "./land";
 // Pass in the initial state name, as well as the state classes themselves:
 const machine = new Machine({
   initial: "Land",
-  data: {},
+  props: {},
   states: {
     Jump, Land
   }
@@ -152,18 +152,18 @@ export default Final extends TransitionTo<never> {
 }
 ```
 
-# Injecting data
+# Injecting props
 
 Sometimes, you may want your set of states to accept some sort of configuration
 data, or to be able to pass some kind of top-level data from your program into
-the states so they can take action on it. States can optionally define data
-they require to be passed into their `start()` calls, and at `Machine`
-instantiation time you'll need to provide the data that the states require. For
-example:
+the states so they can take action on it &emdash; similar to React's `props`.
+States can optionally define data they require to be passed into their
+`start()` calls, and at `Machine` instantiation time you'll need to provide the
+data that the states require. For example:
 
 ```typescript
 class Jump extends TransitionTo<'Land', { jumpPower: number }> {
-  start(data: { jumpPower: number }) {
+  start(props: { jumpPower: number }) {
     console.log(`Jumped with power ${jumpPower}`);
   }
 
@@ -172,8 +172,8 @@ class Jump extends TransitionTo<'Land', { jumpPower: number }> {
 }
 
 class Land extends TransitionTo<'Jump', { bounceOnLand: boolean }> {
-  start(data: { bounceOnLand: boolean }) {
-    if(data.bounceOnLand) console.log("Bouncy land");
+  start(props: { bounceOnLand: boolean }) {
+    if(props.bounceOnLand) console.log("Bouncy land");
     else console.log("Unbouncy land");
   }
 
@@ -185,7 +185,7 @@ class Land extends TransitionTo<'Jump', { bounceOnLand: boolean }> {
 // that all specified data is actually passed in.
 const machine = new Machine({
   initial: "Land",
-  data: {
+  props: {
     bounceOnLand: false,
     jumpPower: 5.6,
   },
@@ -267,7 +267,7 @@ class DoubleJump extends TransitionTo<never> {
 export default class Jump extends TransitionTo<"Land"> {
   private jumpMachine = new Machine({
     initial: "InitialJump",
-    data: {},
+    props: {},
     states: { InitialJump, DoubleJump },
   });
 
@@ -326,7 +326,7 @@ constructor:
 // Jump and Land are allocated here:
 const machine = new Machine({
   initial: "Land",
-  data: {},
+  props: {},
   states: { Jump, Land }
 });
 ```

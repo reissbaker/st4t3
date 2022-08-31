@@ -33,7 +33,7 @@ class Final extends TransitionTo<never> {
 function machine() {
   return new Machine({
     initial: "Foo",
-    data: {},
+    props: {},
     states: {
       Foo, Bar, Final
     },
@@ -299,7 +299,7 @@ class Land extends TransitionTo<'Jump', { bounceOnLand: boolean }> {
 function jumpMachine() {
   return new Machine({
     initial: "Land",
-    data: {
+    props: {
       allowDoubleJumps: false,
       bounceOnLand: true,
     },
@@ -322,7 +322,7 @@ describe("State machines with initial state args", () => {
   it<Should>("pass the initial state args into the state on start()", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_start");
     machine.start();
-    expect(spy).toHaveBeenCalledWith(machine.data);
+    expect(spy).toHaveBeenCalledWith(machine.props);
   });
 
   it<Should>("continue passing the state args into start() calls on transition", ({ machine }) => {
@@ -330,18 +330,18 @@ describe("State machines with initial state args", () => {
     machine.start();
     expect(spy).toHaveBeenCalledTimes(0);
     machine.current().jump();
-    expect(spy).toHaveBeenCalledWith(machine.data);
+    expect(spy).toHaveBeenCalledWith(machine.props);
   });
 
   it<Should>("pass the state args into subsequent start() calls after a stop", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_start");
     machine.start();
-    expect(spy).toHaveBeenCalledWith(machine.data);
+    expect(spy).toHaveBeenCalledWith(machine.props);
     machine.stop();
     machine.start();
-    expect(spy).toHaveBeenNthCalledWith(2, machine.data);
+    expect(spy).toHaveBeenNthCalledWith(2, machine.props);
     machine.stop();
     machine.start();
-    expect(spy).toHaveBeenNthCalledWith(3, machine.data);
+    expect(spy).toHaveBeenNthCalledWith(3, machine.props);
   });
 });
