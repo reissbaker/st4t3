@@ -1,8 +1,9 @@
 {
   "name": "st4t3",
   "version": "0.0.1",
-  "description": "A small, simple state machine library",
+  "description": "An ultra-simple, tiny-but-powerful, typesafe state machine library",
   "main": "build/index.js",
+  "types": "build/index.d.ts",
   "scripts": {
     "test": "vitest",
     "coverage": "rm -rf ./coverage && vitest run --coverage",
