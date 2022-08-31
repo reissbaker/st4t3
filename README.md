@@ -162,8 +162,9 @@ States can optionally define data they require to be passed into their
 data that the states require. For example:
 
 ```typescript
-class Jump extends TransitionTo<'Land', { jumpPower: number }> {
-  start(props: { jumpPower: number }) {
+type JumpProps = { jumpPower: number };
+class Jump extends TransitionTo<'Land', JumpProps> {
+  start({ jumpPower }: Props) {
     console.log(`Jumped with power ${jumpPower}`);
   }
 
@@ -171,9 +172,10 @@ class Jump extends TransitionTo<'Land', { jumpPower: number }> {
   land() { this.transition('Land'); }
 }
 
-class Land extends TransitionTo<'Jump', { bounceOnLand: boolean }> {
-  start(props: { bounceOnLand: boolean }) {
-    if(props.bounceOnLand) console.log("Bouncy land");
+type LandProps = { bounceOnLand: boolean };
+class Land extends TransitionTo<'Jump', LandProps> {
+  start({ bounceOnLand }: Props) {
+    if(bounceOnLand) console.log("Bouncy land");
     else console.log("Unbouncy land");
   }
 
