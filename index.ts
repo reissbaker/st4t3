@@ -127,19 +127,17 @@ export class Machine<Args extends StateClassMap<any>> {
   private _current: InstanceType<Args[TransitionNamesOf<Args>]>;
   private _running = false;
   private _everRan = false;
-  readonly props: MachinePropsFromStateClasses<Args>;
+  props: MachinePropsFromStateClasses<Args> | null = null;
   private readonly _initial: keyof Args;
 
   constructor(
     input: {
       initial: keyof Args,
-      props: MachinePropsFromStateClasses<Args>,
       states: Args & FullySpecifiedStateClassMap<Args>,
     }
   ) {
     const map: Partial<StateMap<Args>> = {};
     const args = input.states;
-    this.props = input.props;
     this._initial = input.initial;
 
     for(const transition in args) {
@@ -149,14 +147,15 @@ export class Machine<Args extends StateClassMap<any>> {
     this._current = this.stateMap[this._initial];
   }
 
-  start(args = {reset: true}) {
+  start(props: MachinePropsFromStateClasses<Args>, args = {reset: true}) {
     if(this._running) return;
 
     this._everRan = true;
     this._running = true;
+    this.props = props;
 
     if(args.reset) this._current = this.stateMap[this._initial];
-    this._current._start(this.props);
+    this._current._start(props);
   }
 
   // Given a name, transition to that state

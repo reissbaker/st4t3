@@ -33,7 +33,6 @@ class Final extends TransitionTo<never> {
 function machine() {
   return new Machine({
     initial: "Foo",
-    props: {},
     states: {
       Foo, Bar, Final
     },
@@ -56,13 +55,13 @@ describe("State Machines", () => {
 
   it<Should>("start the current state when started", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_start");
-    machine.start();
+    machine.start({});
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it<Should>("stop the current state when stopped", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_stop");
-    machine.start();
+    machine.start({});
     machine.stop();
     expect(spy).toHaveBeenCalledOnce();
   });
@@ -75,21 +74,21 @@ describe("State Machines", () => {
 
   it<Should>("allow transitions between states", ({ machine }) => {
     expect(machine.current()).toBeInstanceOf(Foo);
-    machine.start();
+    machine.start({});
     machine.current().next();
     expect(machine.current()).toBeInstanceOf(Bar);
   });
 
   it<Should>("call stop on states when transitioning off of them", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_stop");
-    machine.start();
+    machine.start({});
     machine.current().next();
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it<Should>("call start on states when transitioning onto them", ({ machine }) => {
     const spy = vi.spyOn(machine.state("Bar"), "_start");
-    machine.start();
+    machine.start({});
     machine.current().next();
     expect(spy).toHaveBeenCalledOnce();
   });
@@ -99,19 +98,19 @@ describe("State Machines", () => {
     const startSpy = vi.spyOn(machine.state("Bar"), "_start").mockImplementation(() => {
       expect(stopSpy).toHaveBeenCalledOnce();
     });
-    machine.start();
+    machine.start({});
     machine.current().next();
     expect(startSpy).toHaveBeenCalledOnce();
   });
 
   it<Should>("say it's running after being started", ({ machine }) => {
     expect(machine.running()).toEqual(false);
-    machine.start();
+    machine.start({});
     expect(machine.running()).toEqual(true);
   });
 
   it<Should>("say it's not running after being stopped", ({ machine }) => {
-    machine.start();
+    machine.start({});
     machine.stop();
     expect(machine.running()).toEqual(false);
   });
@@ -123,34 +122,34 @@ describe("State Machines", () => {
   });
 
   it<Should>("reset to the initial state after a new start call", ({ machine }) => {
-    machine.start();
+    machine.start({});
     expect(machine.current()).toBeInstanceOf(Foo);
     machine.current().next();
     expect(machine.current()).toBeInstanceOf(Bar);
     machine.stop();
     expect(machine.current()).toBeInstanceOf(Bar);
-    machine.start();
+    machine.start({});
     expect(machine.current()).toBeInstanceOf(Foo);
   });
 
   it<Should>("not reset on multiple start calls in a row", ({ machine }) => {
-    machine.start();
+    machine.start({});
     expect(machine.current()).toBeInstanceOf(Foo);
     machine.current().next();
-    machine.start();
+    machine.start({});
     expect(machine.current()).toBeInstanceOf(Bar);
   });
 
   it<Should>("only call start() on states once for repeated start invocations", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_start");
-    machine.start();
-    machine.start();
+    machine.start({});
+    machine.start({});
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it<Should>("only call stop() on states once for repeated stop invocations", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_stop");
-    machine.start();
+    machine.start({});
     machine.stop();
     machine.stop();
     expect(spy).toHaveBeenCalledOnce();
@@ -164,29 +163,29 @@ describe("State Machines", () => {
 
   it<Should>("call start again if stop has been called in between invocations", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_start");
-    machine.start();
+    machine.start({});
     machine.stop();
-    machine.start();
+    machine.start({});
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
   it<Should>("call stop again if start has been called in between invocations", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_stop");
-    machine.start();
+    machine.start({});
     machine.stop();
-    machine.start();
+    machine.start({});
     machine.stop();
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
   it<Should>("not reset to the starting state if reset is false", ({ machine }) => {
-    machine.start();
+    machine.start({});
     expect(machine.current()).toBeInstanceOf(Foo);
     machine.current().next();
     expect(machine.current()).toBeInstanceOf(Bar);
     machine.stop();
     expect(machine.current()).toBeInstanceOf(Bar);
-    machine.start({ reset: false });
+    machine.start({}, { reset: false });
     expect(machine.current()).toBeInstanceOf(Bar);
   });
 
@@ -195,7 +194,7 @@ describe("State Machines", () => {
   });
 
   it<Should>("throw a useful error upon transition if it was stopped", ({ machine }) => {
-    machine.start();
+    machine.start({});
     machine.stop();
     expect(() => machine.current().next()).toThrowError("State machine is stopped");
   });
@@ -205,7 +204,7 @@ describe("State Machines", () => {
     machine.current().on("start", () => {
       called = true;
     });
-    machine.start();
+    machine.start({});
     expect(called).toEqual(true);
   });
 
@@ -214,7 +213,7 @@ describe("State Machines", () => {
     machine.state("Final").on("start", () => {
       called = true;
     });
-    machine.start();
+    machine.start({});
     expect(called).toEqual(false);
     machine.current().end();
     expect(called).toEqual(true);
@@ -225,7 +224,7 @@ describe("State Machines", () => {
     machine.current().on("stop", () => {
       called = true;
     });
-    machine.start();
+    machine.start({});
     expect(called).toEqual(false);
     machine.stop();
     expect(called).toEqual(true);
@@ -236,7 +235,7 @@ describe("State Machines", () => {
     machine.current().on("stop", () => {
       called = true;
     });
-    machine.start();
+    machine.start({});
     expect(called).toEqual(false);
     machine.current().next();
     expect(called).toEqual(true);
@@ -245,38 +244,38 @@ describe("State Machines", () => {
   it<Should>("cause the state to emit start events every time start is called", ({ machine }) => {
     let called = 0;
     machine.current().on("start", () => called++);
-    machine.start();
+    machine.start({});
     machine.stop();
-    machine.start();
+    machine.start({});
     expect(called).toEqual(2);
   });
 
   it<Should>("unregister once() listeners after the first invocation", ({ machine }) => {
     let called = 0;
     machine.current().once("start", () => called++);
-    machine.start();
+    machine.start({});
     machine.stop();
-    machine.start();
+    machine.start({});
     expect(called).toEqual(1);
   });
 
   it<Should>("unregister listeners when off() is called", ({ machine }) => {
     let called = 0;
     const cb = machine.current().on("start", () => called++);
-    machine.start();
+    machine.start({});
     machine.current().off("start", cb);
     machine.stop();
-    machine.start();
+    machine.start({});
     expect(called).toEqual(1);
   });
 
   it<Should>("return false from off() if the listener isn't registered", ({ machine }) => {
     let called = 0;
     const cb = machine.current().on("start", () => called++);
-    machine.start();
+    machine.start({});
     machine.current().off("start", cb);
     machine.stop();
-    machine.start();
+    machine.start({});
     expect(called).toEqual(1);
     expect(machine.current().off("start", cb)).toEqual(false);
   });
@@ -296,13 +295,13 @@ class Land extends TransitionTo<'Jump', { bounceOnLand: boolean }> {
   }
 }
 
+const jumpProps = {
+  allowDoubleJumps: false,
+  bounceOnLand: true,
+};
 function jumpMachine() {
   return new Machine({
     initial: "Land",
-    props: {
-      allowDoubleJumps: false,
-      bounceOnLand: true,
-    },
     states: {
       Jump, Land
     }
@@ -321,43 +320,43 @@ describe("State machines with initial state args", () => {
 
   it<Should>("pass the initial state args into the state on start()", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_start");
-    machine.start();
-    expect(spy).toHaveBeenCalledWith(machine.props);
+    machine.start(jumpProps);
+    expect(spy).toHaveBeenCalledWith(jumpProps);
   });
 
   it<Should>("continue passing the state args into start() calls on transition", ({ machine }) => {
     const spy = vi.spyOn(machine.state("Jump"), "_start");
-    machine.start();
+    machine.start(jumpProps);
     expect(spy).toHaveBeenCalledTimes(0);
     machine.current().jump();
-    expect(spy).toHaveBeenCalledWith(machine.props);
+    expect(spy).toHaveBeenCalledWith(jumpProps);
   });
 
   it<Should>("pass the state args into stop() calls on transition", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_stop");
-    machine.start();
+    machine.start(jumpProps);
     expect(spy).toHaveBeenCalledTimes(0);
     machine.current().jump();
-    expect(spy).toHaveBeenCalledWith(machine.props);
+    expect(spy).toHaveBeenCalledWith(jumpProps);
   });
 
   it<Should>("pass the state args into stop() calls on stop", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_stop");
-    machine.start();
+    machine.start(jumpProps);
     expect(spy).toHaveBeenCalledTimes(0);
     machine.stop();
-    expect(spy).toHaveBeenCalledWith(machine.props);
+    expect(spy).toHaveBeenCalledWith(jumpProps);
   });
 
   it<Should>("pass the state args into subsequent start() calls after a stop", ({ machine }) => {
     const spy = vi.spyOn(machine.current(), "_start");
-    machine.start();
-    expect(spy).toHaveBeenCalledWith(machine.props);
+    machine.start(jumpProps);
+    expect(spy).toHaveBeenCalledWith(jumpProps);
     machine.stop();
-    machine.start();
-    expect(spy).toHaveBeenNthCalledWith(2, machine.props);
+    machine.start(jumpProps);
+    expect(spy).toHaveBeenNthCalledWith(2, jumpProps);
     machine.stop();
-    machine.start();
-    expect(spy).toHaveBeenNthCalledWith(3, machine.props);
+    machine.start(jumpProps);
+    expect(spy).toHaveBeenNthCalledWith(3, jumpProps);
   });
 });

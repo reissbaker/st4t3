@@ -86,13 +86,12 @@ import Land from "./land";
 // Pass in the initial state name, as well as the state classes themselves:
 const machine = new Machine({
   initial: "Land",
-  props: {},
   states: {
     Jump, Land
   }
 });
 
-machine.start(); // Prints "landed."
+machine.start({}); // Prints "landed."
 machine.current().jump(); // Prints "jumped!"
 machine.current().jump(); // No-op, since Jump#jump() is a no-op
 machine.current().land(); // Prints "stopping jumping" and then "landed."
@@ -158,8 +157,8 @@ Sometimes, you may want your set of states to accept some sort of configuration
 data, or to be able to pass some kind of top-level data from your program into
 the states so they can take action on it &mdash; similar to React's `props`.
 States can optionally define data they require to be passed into their
-`start()` and `stop()` calls, and at `Machine` instantiation time you'll need
-to provide the data that the states require. For example:
+`start()` and `stop()` calls, and at `Machine#start()` time you'll need to
+provide the data that the states require. For example:
 
 ```typescript
 type JumpProps = { jumpPower: number };
@@ -183,22 +182,31 @@ class Land extends TransitionTo<'Jump', LandProps> {
   land() {}
 }
 
-// You have to pass in all of the data required here. The type system checks
-// that all specified data is actually passed in.
 const machine = new Machine({
   initial: "Land",
-  props: {
-    bounceOnLand: false,
-    jumpPower: 5.6,
-  },
   states: {
     Jump, Land,
   },
 });
 
-machine.start(); // Prints "Unbouncy land"
+// You have to pass in all of the data required here. The type system checks
+// that all specified data is actually passed in.
+machine.start({
+  bounceOnLand: false,
+  jumpPower: 5.6,
+}); // Prints "Unbouncy land"
 machine.jump();  // Prints "Jumped with power 5.6"
 ```
+
+The type for the `props` passed into the `start()` call is inferred from the
+props defined by the state classes; if you're missing a property that a state
+class requires, it'll fail to compile.
+
+Props remain the same from the initial `start()` call through all
+`transition()` calls &mdash; you don't need to pass props into transitions. You
+can think of props being constant through a single run of a state machine; you
+only get to reset them when you call `stop()` and then a new invocation of
+`start()`.
 
 # Events
 
@@ -269,14 +277,13 @@ class DoubleJump extends TransitionTo<never> {
 export default class Jump extends TransitionTo<"Land"> {
   private jumpMachine = new Machine({
     initial: "InitialJump",
-    props: {},
     states: { InitialJump, DoubleJump },
   });
 
   start() {
     // Since we set "InitialJump" as the initial state, calling start() will
     // always first set the state to InitialJump
-    this.jumpMachine.start();
+    this.jumpMachine.start({});
   }
 
   stop() {
@@ -328,7 +335,6 @@ constructor:
 // Jump and Land are allocated here:
 const machine = new Machine({
   initial: "Land",
-  props: {},
   states: { Jump, Land }
 });
 ```
