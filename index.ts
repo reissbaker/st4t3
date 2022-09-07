@@ -168,6 +168,9 @@ export class Machine<SCM extends StateClassMap<any>> {
     if(!this._everRan) throw new Error("State machine was never started");
     if(!this._running) throw new Error("State machine is stopped");
 
+    // Ignore transitions to the same state
+    if(state === this._currentName) return;
+
     this._stopAndClearCurrent();
     this._createAndStart(state);
   }

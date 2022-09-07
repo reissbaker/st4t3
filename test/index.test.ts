@@ -235,6 +235,15 @@ describe("State Machines", () => {
     expect(called).toEqual(1);
     expect(machine.events.Foo.off("start", cb)).toEqual(false);
   });
+
+  it<Should>("not transition to a duplicate of the current state", ({ machine }) => {
+    machine.start({});
+    expect(machine.current()).toBeInstanceOf(Foo);
+    withMockFn(Foo, "start", (spy) => {
+      machine.transitionTo("Foo");
+      expect(spy).toHaveBeenCalledTimes(0);
+    });
+  });
 });
 
 class Jump extends TransitionTo<'Land', { allowDoubleJumps: boolean }> {
