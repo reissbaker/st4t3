@@ -196,6 +196,10 @@ describe("State Machines", () => {
     expect(() => machine.transitionTo("Bar")).toThrowError("State machine was never started");
   });
 
+  it<Should>("throw a useful error on current() if it was never started", ({ machine }) => {
+    expect(() => machine.current()).toThrowError("No current state: was the machine ever started?");
+  });
+
   it<Should>("throw a useful error upon transition if it was stopped", ({ machine }) => {
     machine.start({});
     machine.stop();
@@ -203,11 +207,12 @@ describe("State Machines", () => {
   });
 
   it<Should>("unregister once() listeners after the first invocation", ({ machine }) => {
-    const spy = machine.state("Foo").once("start", vi.fn());
+    let called = 0;
+    machine.state("Foo").once("start", () => called++);
     machine.start({});
     machine.stop();
     machine.start({});
-    expect(spy).toHaveBeenCalledOnce();
+    expect(called).toBe(1);
   });
 
   it<Should>("unregister listeners when off() is called", ({ machine }) => {
