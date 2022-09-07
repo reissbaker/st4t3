@@ -125,12 +125,13 @@ export type TransitionNamesOf<M> = M extends StateClassMap<infer T> ? T :
  * =================================================================================================
  */
 export class Machine<SCM extends StateClassMap<any>> {
+  readonly events: { [K in keyof SCM]: EventEmitter };
+  props: MachinePropsFromStateClasses<SCM> | null = null;
+
   private scm: SCM;
-  private readonly _eventMap: { [K in keyof SCM]: EventEmitter };
   private _current: InstanceType<SCM[keyof SCM]> | null = null;
   private _running = false;
   private _everRan = false;
-  props: MachinePropsFromStateClasses<SCM> | null = null;
   private readonly _initial: keyof SCM;
   private _currentName: keyof SCM;
 
@@ -148,7 +149,7 @@ export class Machine<SCM extends StateClassMap<any>> {
     for(const key in args) {
       eventMap[key as keyof SCM] = new EventEmitter();
     }
-    this._eventMap = eventMap as {[K in keyof SCM]: EventEmitter };
+    this.events = eventMap as {[K in keyof SCM]: EventEmitter };
   }
 
   start(props: MachinePropsFromStateClasses<SCM>) {
@@ -188,23 +189,17 @@ export class Machine<SCM extends StateClassMap<any>> {
     return this._current;
   }
 
-  // Returns an EventEmitter that will fire events when the state of the given `name` does
-  // TODO: Rename this to "events"
-  state(name: keyof SCM): EventEmitter {
-    return this._eventMap[name];
-  }
-
   private _createAndStart(name: keyof SCM) {
     const stateClass = this.scm[name];
     const current = new stateClass(this);
     this._current = current as InstanceType<SCM[keyof SCM]>;
     this._currentName = name;
-    current._start(this.props, this._eventMap[name]);
+    current._start(this.props, this.events[name]);
   }
 
   private _stopAndClearCurrent() {
     if(!this._current) throw new Error("Internal error: _current was never initialized");
     // Stop and clear the old state
-    this._current._stop(this.props, this._eventMap[this._currentName]);
+    this._current._stop(this.props, this.events[this._currentName]);
   }
 }
