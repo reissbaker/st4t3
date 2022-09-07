@@ -228,6 +228,12 @@ export class Machine<SCM extends StateClassMap<any>> {
     return this._current;
   }
 
+  // Returns the event emitter for whatever the current state is (or the initial state, if the
+  // machine hasn't started yet). Mostly useful for tests.
+  currentEvents(): StateEventEmitter<InstanceType<SCM[keyof SCM]>> {
+    return this.events[this._currentName];
+  }
+
   private _createAndStart<N extends keyof SCM>(name: N, props: MachinePropsFromStateClasses<SCM>) {
     const stateClass = this.scm[name];
     const current = new stateClass(this, props) as InstanceType<SCM[N]>;

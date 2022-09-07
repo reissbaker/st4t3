@@ -65,13 +65,13 @@ describe("State Machines", () => {
   });
 
   it<Should>("start the current state when started", ({ machine }) => {
-    const spy = machine.events.Foo.on("start", vi.fn());
+    const spy = machine.currentEvents().on("start", vi.fn());
     machine.start({});
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it<Should>("stop the current state when stopped", ({ machine }) => {
-    const spy = machine.events.Foo.on("stop", vi.fn());
+    const spy = machine.currentEvents().on("stop", vi.fn());
     machine.start({});
     expect(spy).toHaveBeenCalledTimes(0);
     machine.stop();
@@ -94,7 +94,7 @@ describe("State Machines", () => {
   });
 
   it<Should>("call stop on states when transitioning off of them", ({ machine }) => {
-    const spy = machine.events.Foo.on("stop", vi.fn());
+    const spy = machine.currentEvents().on("stop", vi.fn());
     machine.start({});
     expect(spy).toHaveBeenCalledTimes(0);
     machine.current().next();
@@ -155,14 +155,14 @@ describe("State Machines", () => {
   });
 
   it<Should>("only call start() on states once for repeated start invocations", ({ machine }) => {
-    const spy = machine.events.Foo.on("start", vi.fn());
+    const spy = machine.currentEvents().on("start", vi.fn());
     machine.start({});
     machine.start({});
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it<Should>("only call stop() on states once for repeated stop invocations", ({ machine }) => {
-    const spy = machine.events.Foo.on("stop", vi.fn());
+    const spy = machine.currentEvents().on("stop", vi.fn());
     machine.start({});
     machine.stop();
     machine.stop();
@@ -170,13 +170,13 @@ describe("State Machines", () => {
   });
 
   it<Should>("not call stop() on states unless it already started", ({ machine }) => {
-    const spy = machine.events.Foo.on("stop", vi.fn());
+    const spy = machine.currentEvents().on("stop", vi.fn());
     machine.stop();
     expect(spy).toHaveBeenCalledTimes(0);
   });
 
   it<Should>("call start again if stop has been called in between invocations", ({ machine }) => {
-    const spy = machine.events.Foo.on("start", vi.fn());
+    const spy = machine.currentEvents().on("start", vi.fn());
     machine.start({});
     machine.stop();
     machine.start({});
@@ -184,7 +184,7 @@ describe("State Machines", () => {
   });
 
   it<Should>("call stop again if start has been called in between invocations", ({ machine }) => {
-    const spy = machine.events.Foo.on("stop", vi.fn());
+    const spy = machine.currentEvents().on("stop", vi.fn());
     machine.start({});
     machine.stop();
     machine.start({});
@@ -208,7 +208,7 @@ describe("State Machines", () => {
 
   it<Should>("unregister once() listeners after the first invocation", ({ machine }) => {
     let called = 0;
-    machine.events.Foo.once("start", () => called++);
+    machine.currentEvents().once("start", () => called++);
     machine.start({});
     machine.stop();
     machine.start({});
@@ -217,9 +217,9 @@ describe("State Machines", () => {
 
   it<Should>("unregister listeners when off() is called", ({ machine }) => {
     let called = 0;
-    const cb = machine.events.Foo.on("start", () => called++);
+    const cb = machine.currentEvents().on("start", () => called++);
     machine.start({});
-    machine.events.Foo.off("start", cb);
+    machine.currentEvents().off("start", cb);
     machine.stop();
     machine.start({});
     expect(called).toEqual(1);
@@ -227,9 +227,9 @@ describe("State Machines", () => {
 
   it<Should>("return false from off() if the listener isn't registered", ({ machine }) => {
     let called = 0;
-    const cb = machine.events.Foo.on("start", () => called++);
+    const cb = machine.currentEvents().on("start", () => called++);
     machine.start({});
-    machine.events.Foo.off("start", cb);
+    machine.currentEvents().off("start", cb);
     machine.stop();
     machine.start({});
     expect(called).toEqual(1);
@@ -246,7 +246,7 @@ describe("State Machines", () => {
   });
 
   it<Should>("remove handlers for a state event when you call clear()", ({ machine }) => {
-    const spy = machine.events.Foo.on("start", vi.fn());
+    const spy = machine.currentEvents().on("start", vi.fn());
     machine.events.Foo.clear();
     machine.start({});
     expect(spy).toHaveBeenCalledTimes(0);
