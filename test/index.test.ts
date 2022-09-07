@@ -283,50 +283,43 @@ describe("State machines with initial state args", () => {
     ctx.machine = jumpMachine();
   });
 
-  it<Should>("pass the initial state args into the state on start()", ({ machine }) => {
-    withMockFn(Land, "start", (spy) => {
-      machine.start(jumpProps);
-      expect(spy).toHaveBeenCalledWith(jumpProps);
+  it<Should>("set the initial state args as the state's props", ({ machine }) => {
+    const spy = vi.fn((state: Land) => {
+      expect(state.props).toBe(jumpProps);
     });
+    machine.events.Land.on("start", spy);
+    machine.start(jumpProps);
+    expect(spy).toHaveBeenCalledOnce();
   });
 
-  it<Should>("continue passing the state args into start() calls on transition", ({ machine }) => {
-    withMockFn(Jump, "start", (spy) => {
-      machine.start(jumpProps);
-      expect(spy).toHaveBeenCalledTimes(0);
-      machine.current().jump();
-      expect(spy).toHaveBeenCalledWith(jumpProps);
+  it<Should>("set the state args as props on transition to the next state", ({ machine }) => {
+    const spy = vi.fn((state: Jump) => {
+      expect(state.props).toBe(jumpProps);
     });
+    machine.events.Jump.on("start", spy);
+    machine.start(jumpProps);
+    machine.current().jump();
+    expect(spy).toHaveBeenCalledOnce();
   });
 
-  it<Should>("pass the state args into stop() calls on transition", ({ machine }) => {
-    withMockFn(Land, "stop", (spy) => {
-      machine.start(jumpProps);
-      expect(spy).toHaveBeenCalledTimes(0);
-      machine.current().jump();
-      expect(spy).toHaveBeenCalledWith(jumpProps);
+  it<Should>("allow the props to be set to new data after a stop", ({ machine }) => {
+    const firstStart = vi.fn((state: Land) => {
+      expect(state.props).toBe(jumpProps);
     });
-  });
+    machine.events.Land.once("start", firstStart);
+    machine.start(jumpProps);
+    expect(firstStart).toHaveBeenCalledOnce();
 
-  it<Should>("pass the state args into stop() calls on stop", ({ machine }) => {
-    withMockFn(Land, "stop", (spy) => {
-      machine.start(jumpProps);
-      expect(spy).toHaveBeenCalledTimes(0);
-      machine.stop();
-      expect(spy).toHaveBeenCalledWith(jumpProps);
+    const nextJumpProps = {
+      allowDoubleJumps: true,
+      bounceOnLand: false,
+    };
+    const secondStart = vi.fn((state: Land) => {
+      expect(state.props).toBe(nextJumpProps);
     });
-  });
-
-  it<Should>("pass the state args into subsequent start() calls after a stop", ({ machine }) => {
-    withMockFn(Land, "start", (spy) => {
-      machine.start(jumpProps);
-      expect(spy).toHaveBeenCalledWith(jumpProps);
-      machine.stop();
-      machine.start(jumpProps);
-      expect(spy).toHaveBeenNthCalledWith(2, jumpProps);
-      machine.stop();
-      machine.start(jumpProps);
-      expect(spy).toHaveBeenNthCalledWith(3, jumpProps);
-    });
+    machine.events.Land.once("start", secondStart);
+    machine.stop();
+    machine.start(nextJumpProps);
+    expect(secondStart).toHaveBeenCalledOnce();
   });
 });
