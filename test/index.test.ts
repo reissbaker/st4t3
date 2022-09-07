@@ -244,6 +244,13 @@ describe("State Machines", () => {
       expect(spy).toHaveBeenCalledTimes(0);
     });
   });
+
+  it<Should>("remove handlers for a state event when you call clear()", ({ machine }) => {
+    const spy = machine.events.Foo.on("start", vi.fn());
+    machine.events.Foo.clear();
+    machine.start({});
+    expect(spy).toHaveBeenCalledTimes(0);
+  });
 });
 
 class Jump extends TransitionTo<'Land', { allowDoubleJumps: boolean }> {
