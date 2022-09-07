@@ -1,6 +1,16 @@
 import { vi, expect, it, describe, beforeEach } from "vitest";
 import { TransitionTo, Machine } from "../index";
 
+function withMockFn(klass: { prototype: any }, name: string, cb: (m: ReturnType<typeof vi.fn>) => any) {
+  const original = klass.prototype[name];
+  try {
+    const mock = klass.prototype[name] = vi.fn();
+    cb(mock);
+  } finally {
+    klass.prototype[name] = original;
+  }
+}
+
 abstract class Base extends TransitionTo<"Bar" | "Foo" | "Final"> {
   test() {}
 }
@@ -49,58 +59,79 @@ describe("State Machines", () => {
     ctx.machine = machine();
   });
 
-  it<Should>("set the current state to the initial transition string", ({ machine }) => {
+  it<Should>("set the current state to the initial transition string on start", ({ machine }) => {
+    machine.start({});
     expect(machine.current()).toBeInstanceOf(Foo);
   });
 
   it<Should>("start the current state when started", ({ machine }) => {
-    const spy = vi.spyOn(machine.current(), "_start");
+    let called = 0;
+    machine.state("Foo").on("start", () => {
+      called++;
+    });
     machine.start({});
-    expect(spy).toHaveBeenCalledOnce();
+    expect(called).toBe(1);
   });
 
   it<Should>("stop the current state when stopped", ({ machine }) => {
-    const spy = vi.spyOn(machine.current(), "_stop");
+    let called = 0;
+    machine.state("Foo").on("stop", () => {
+      called++;
+    });
     machine.start({});
+    expect(called).toBe(0);
     machine.stop();
-    expect(spy).toHaveBeenCalledOnce();
+    expect(called).toEqual(1);
   });
 
   it<Should>("allow accessing methods on #current() that all states define", ({ machine }) => {
+    machine.start({});
     const spy = vi.spyOn(machine.current(), "test");
     machine.current().test();
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it<Should>("allow transitions between states", ({ machine }) => {
-    expect(machine.current()).toBeInstanceOf(Foo);
     machine.start({});
+    expect(machine.current()).toBeInstanceOf(Foo);
     machine.current().next();
     expect(machine.current()).toBeInstanceOf(Bar);
   });
 
   it<Should>("call stop on states when transitioning off of them", ({ machine }) => {
-    const spy = vi.spyOn(machine.current(), "_stop");
+    let called = 0;
+    machine.state("Foo").on("stop", () => {
+      called++;
+    });
     machine.start({});
+    expect(called).toBe(0);
     machine.current().next();
-    expect(spy).toHaveBeenCalledOnce();
+    expect(called).toEqual(1);
   });
 
   it<Should>("call start on states when transitioning onto them", ({ machine }) => {
-    const spy = vi.spyOn(machine.state("Bar"), "_start");
-    machine.start({});
-    machine.current().next();
-    expect(spy).toHaveBeenCalledOnce();
-  });
-
-  it<Should>("call stop on the old state before calling start on the new state", ({ machine }) => {
-    const stopSpy = vi.spyOn(machine.current(), "_stop");
-    const startSpy = vi.spyOn(machine.state("Bar"), "_start").mockImplementation(() => {
-      expect(stopSpy).toHaveBeenCalledOnce();
+    let called = 0;
+    machine.state("Bar").on("start", () => {
+      called++;
     });
     machine.start({});
     machine.current().next();
-    expect(startSpy).toHaveBeenCalledOnce();
+    expect(called).toEqual(1);
+  });
+
+  it<Should>("call stop on the old state before calling start on the new state", ({ machine }) => {
+    let stopCalls = 0;
+    let startCalls = 0;
+    machine.state("Bar").on("start", () => {
+      expect(stopCalls).toEqual(1);
+      startCalls++;
+    });
+    machine.state("Foo").on("stop", () => {
+      stopCalls++;
+    });
+    machine.start({});
+    machine.current().next();
+    expect(startCalls).toEqual(1);
   });
 
   it<Should>("say it's running after being started", ({ machine }) => {
@@ -113,12 +144,6 @@ describe("State Machines", () => {
     machine.start({});
     machine.stop();
     expect(machine.running()).toEqual(false);
-  });
-
-  it<Should>("allow calling state-specific functions when accessing states", ({ machine }) => {
-    const spy = vi.spyOn(machine.state("Foo"), "foo");
-    machine.state("Foo").foo();
-    expect(spy).toHaveBeenCalledOnce();
   });
 
   it<Should>("reset to the initial state after a new start call", ({ machine }) => {
@@ -141,36 +166,46 @@ describe("State Machines", () => {
   });
 
   it<Should>("only call start() on states once for repeated start invocations", ({ machine }) => {
-    const spy = vi.spyOn(machine.current(), "_start");
+    let called = 0;
+    machine.state("Foo").on("start", () => {
+      called++;
+    });
     machine.start({});
     machine.start({});
-    expect(spy).toHaveBeenCalledOnce();
+    expect(called).toEqual(1);
   });
 
   it<Should>("only call stop() on states once for repeated stop invocations", ({ machine }) => {
-    const spy = vi.spyOn(machine.current(), "_stop");
+    let called = 0;
+    machine.state("Foo").on("stop", () => {
+      called++;
+    });
     machine.start({});
     machine.stop();
     machine.stop();
-    expect(spy).toHaveBeenCalledOnce();
+    expect(called).toEqual(1);
   });
 
   it<Should>("not call stop() on states unless it already started", ({ machine }) => {
-    const spy = vi.spyOn(machine.current(), "_stop");
+    let called = 0;
+    machine.state("Foo").on("stop", () => {
+      called++;
+    });
     machine.stop();
-    expect(spy).toHaveBeenCalledTimes(0);
+    expect(called).toEqual(0);
   });
 
   it<Should>("call start again if stop has been called in between invocations", ({ machine }) => {
-    const spy = vi.spyOn(machine.current(), "_start");
+    let called = 0;
+    machine.state("Foo").on("start", () => called++);
     machine.start({});
     machine.stop();
     machine.start({});
-    expect(spy).toHaveBeenCalledTimes(2);
+    expect(called).toBe(2);
   });
 
   it<Should>("call stop again if start has been called in between invocations", ({ machine }) => {
-    const spy = vi.spyOn(machine.current(), "_stop");
+    const spy = machine.state("Foo").on("stop", vi.fn());
     machine.start({});
     machine.stop();
     machine.start({});
@@ -178,34 +213,14 @@ describe("State Machines", () => {
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
-  it<Should>("not reset to the starting state if reset is false", ({ machine }) => {
-    machine.start({});
-    expect(machine.current()).toBeInstanceOf(Foo);
-    machine.current().next();
-    expect(machine.current()).toBeInstanceOf(Bar);
-    machine.stop();
-    expect(machine.current()).toBeInstanceOf(Bar);
-    machine.start({}, { reset: false });
-    expect(machine.current()).toBeInstanceOf(Bar);
-  });
-
   it<Should>("throw a useful error upon transition if it was never started", ({ machine }) => {
-    expect(() => machine.current().next()).toThrowError("State machine was never started");
+    expect(() => machine.transitionTo("Bar")).toThrowError("State machine was never started");
   });
 
   it<Should>("throw a useful error upon transition if it was stopped", ({ machine }) => {
     machine.start({});
     machine.stop();
     expect(() => machine.current().next()).toThrowError("State machine is stopped");
-  });
-
-  it<Should>("cause the state to emit a start event when starting", ({ machine }) => {
-    let called = false;
-    machine.current().on("start", () => {
-      called = true;
-    });
-    machine.start({});
-    expect(called).toEqual(true);
   });
 
   it<Should>("cause the state to emit a start event when transitioning in", ({ machine }) => {
@@ -219,40 +234,9 @@ describe("State Machines", () => {
     expect(called).toEqual(true);
   });
 
-  it<Should>("cause the state to emit a stop event when stopping", ({ machine }) => {
-    let called = false;
-    machine.current().on("stop", () => {
-      called = true;
-    });
-    machine.start({});
-    expect(called).toEqual(false);
-    machine.stop();
-    expect(called).toEqual(true);
-  });
-
-  it<Should>("cause the state to emit a stop event when transitioning out", ({ machine }) => {
-    let called = false;
-    machine.current().on("stop", () => {
-      called = true;
-    });
-    machine.start({});
-    expect(called).toEqual(false);
-    machine.current().next();
-    expect(called).toEqual(true);
-  });
-
-  it<Should>("cause the state to emit start events every time start is called", ({ machine }) => {
-    let called = 0;
-    machine.current().on("start", () => called++);
-    machine.start({});
-    machine.stop();
-    machine.start({});
-    expect(called).toEqual(2);
-  });
-
   it<Should>("unregister once() listeners after the first invocation", ({ machine }) => {
     let called = 0;
-    machine.current().once("start", () => called++);
+    machine.state("Foo").once("start", () => called++);
     machine.start({});
     machine.stop();
     machine.start({});
@@ -261,9 +245,9 @@ describe("State Machines", () => {
 
   it<Should>("unregister listeners when off() is called", ({ machine }) => {
     let called = 0;
-    const cb = machine.current().on("start", () => called++);
+    const cb = machine.state("Foo").on("start", () => called++);
     machine.start({});
-    machine.current().off("start", cb);
+    machine.state("Foo").off("start", cb);
     machine.stop();
     machine.start({});
     expect(called).toEqual(1);
@@ -271,13 +255,13 @@ describe("State Machines", () => {
 
   it<Should>("return false from off() if the listener isn't registered", ({ machine }) => {
     let called = 0;
-    const cb = machine.current().on("start", () => called++);
+    const cb = machine.state("Foo").on("start", () => called++);
     machine.start({});
-    machine.current().off("start", cb);
+    machine.state("Foo").off("start", cb);
     machine.stop();
     machine.start({});
     expect(called).toEqual(1);
-    expect(machine.current().off("start", cb)).toEqual(false);
+    expect(machine.state("Foo").off("start", cb)).toEqual(false);
   });
 });
 
@@ -319,44 +303,49 @@ describe("State machines with initial state args", () => {
   });
 
   it<Should>("pass the initial state args into the state on start()", ({ machine }) => {
-    const spy = vi.spyOn(machine.current(), "_start");
-    machine.start(jumpProps);
-    expect(spy).toHaveBeenCalledWith(jumpProps);
+    withMockFn(Land, "start", (spy) => {
+      machine.start(jumpProps);
+      expect(spy).toHaveBeenCalledWith(jumpProps);
+    });
   });
 
   it<Should>("continue passing the state args into start() calls on transition", ({ machine }) => {
-    const spy = vi.spyOn(machine.state("Jump"), "_start");
-    machine.start(jumpProps);
-    expect(spy).toHaveBeenCalledTimes(0);
-    machine.current().jump();
-    expect(spy).toHaveBeenCalledWith(jumpProps);
+    withMockFn(Jump, "start", (spy) => {
+      machine.start(jumpProps);
+      expect(spy).toHaveBeenCalledTimes(0);
+      machine.current().jump();
+      expect(spy).toHaveBeenCalledWith(jumpProps);
+    });
   });
 
   it<Should>("pass the state args into stop() calls on transition", ({ machine }) => {
-    const spy = vi.spyOn(machine.current(), "_stop");
-    machine.start(jumpProps);
-    expect(spy).toHaveBeenCalledTimes(0);
-    machine.current().jump();
-    expect(spy).toHaveBeenCalledWith(jumpProps);
+    withMockFn(Land, "stop", (spy) => {
+      machine.start(jumpProps);
+      expect(spy).toHaveBeenCalledTimes(0);
+      machine.current().jump();
+      expect(spy).toHaveBeenCalledWith(jumpProps);
+    });
   });
 
   it<Should>("pass the state args into stop() calls on stop", ({ machine }) => {
-    const spy = vi.spyOn(machine.current(), "_stop");
-    machine.start(jumpProps);
-    expect(spy).toHaveBeenCalledTimes(0);
-    machine.stop();
-    expect(spy).toHaveBeenCalledWith(jumpProps);
+    withMockFn(Land, "stop", (spy) => {
+      machine.start(jumpProps);
+      expect(spy).toHaveBeenCalledTimes(0);
+      machine.stop();
+      expect(spy).toHaveBeenCalledWith(jumpProps);
+    });
   });
 
   it<Should>("pass the state args into subsequent start() calls after a stop", ({ machine }) => {
-    const spy = vi.spyOn(machine.current(), "_start");
-    machine.start(jumpProps);
-    expect(spy).toHaveBeenCalledWith(jumpProps);
-    machine.stop();
-    machine.start(jumpProps);
-    expect(spy).toHaveBeenNthCalledWith(2, jumpProps);
-    machine.stop();
-    machine.start(jumpProps);
-    expect(spy).toHaveBeenNthCalledWith(3, jumpProps);
+    withMockFn(Land, "start", (spy) => {
+      machine.start(jumpProps);
+      expect(spy).toHaveBeenCalledWith(jumpProps);
+      machine.stop();
+      machine.start(jumpProps);
+      expect(spy).toHaveBeenNthCalledWith(2, jumpProps);
+      machine.stop();
+      machine.start(jumpProps);
+      expect(spy).toHaveBeenNthCalledWith(3, jumpProps);
+    });
   });
 });

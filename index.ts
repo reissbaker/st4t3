@@ -5,7 +5,7 @@
 
 type Event = "start" | "stop";
 export class EventEmitter {
-  private readonly listeners: { [K in Event]: Array<() => any> } = {
+  private listeners: { [K in Event]: Array<() => any> } = {
     start: [],
     stop: [],
   };
@@ -30,7 +30,14 @@ export class EventEmitter {
     return this.on(event, wrapped);
   }
 
-  protected emit(event: Event) {
+  clear() {
+    this.listeners = {
+      start: [],
+      stop: [],
+    };
+  }
+
+  emit(event: Event) {
     for(const listener of this.listeners[event]) {
       listener();
     }
@@ -45,15 +52,15 @@ export class EventEmitter {
 export type ConstructorMachine<NextState extends string> = Machine<StateClassMap<NextState>>;
 export type MachineProps = { [key: string]: any }
 
-export abstract class TransitionTo<NextState extends string, Props extends MachineProps = {}> extends EventEmitter {
-  constructor(protected readonly machine: ConstructorMachine<NextState>) { super(); }
+export abstract class TransitionTo<NextState extends string, Props extends MachineProps = {}> {
+  constructor(protected readonly machine: ConstructorMachine<NextState>) { }
 
-  _start(data: Props) { this.start(data); this.emit("start"); }
+  _start(data: Props, emitter: EventEmitter) { this.start(data); emitter.emit("start"); }
   protected start(_: Props) {}
-  _stop(data: Props) { this.stop(data); this.emit("stop"); }
+  _stop(data: Props, emitter: EventEmitter) { this.stop(data); emitter.emit("stop"); }
   protected stop(_: Props) {}
 
-  transitionTo(state: TransitionNamesOf<StateClassMap<NextState>>) {
+  transitionTo(state: keyof StateClassMap<NextState>) {
     this.machine.transitionTo(state);
   }
 };
@@ -109,11 +116,6 @@ export type MachinePropsFromStateClasses<T extends StateClassMap<any>> = UnionTo
 // This is just useful for debugging type inference
 export type SCMFrom<M> = M extends Machine<infer A> ? A : never;
 
-// Given a map of names to state classes, this returns a map of names to state instances
-type StateMap<Map extends StateClassMap<any>> = {
-  [K in keyof Map]: InstanceType<Map[K]>;
-};
-
 // Grab the state transition names from either the state class map, or the machine
 export type TransitionNamesOf<M> = M extends StateClassMap<infer T> ? T :
                                M extends Machine<infer A> ? TransitionNamesOf<A> : never;
@@ -122,57 +124,57 @@ export type TransitionNamesOf<M> = M extends StateClassMap<infer T> ? T :
  * The machine class that runs and keeps track of states
  * =================================================================================================
  */
-export class Machine<Args extends StateClassMap<any>> {
-  private stateMap: StateMap<Args>;
-  private _current: InstanceType<Args[TransitionNamesOf<Args>]>;
+export class Machine<SCM extends StateClassMap<any>> {
+  private scm: SCM;
+  private readonly _eventMap: { [K in keyof SCM]: EventEmitter };
+  private _current: InstanceType<SCM[keyof SCM]> | null = null;
   private _running = false;
   private _everRan = false;
-  props: MachinePropsFromStateClasses<Args> | null = null;
-  private readonly _initial: keyof Args;
+  props: MachinePropsFromStateClasses<SCM> | null = null;
+  private readonly _initial: keyof SCM;
+  private _currentName: keyof SCM;
 
   constructor(
     input: {
-      initial: keyof Args,
-      states: Args & FullySpecifiedStateClassMap<Args>,
+      initial: keyof SCM,
+      states: SCM & FullySpecifiedStateClassMap<SCM>,
     }
   ) {
-    const map: Partial<StateMap<Args>> = {};
     const args = input.states;
-    this._initial = input.initial;
+    this._currentName = this._initial = input.initial;
+    this.scm = args;
 
-    for(const transition in args) {
-      map[transition as unknown as TransitionNamesOf<Args>] = new args[transition](this) as any;
+    const eventMap: Partial<{ [K in keyof SCM]: EventEmitter }> = {};
+    for(const key in args) {
+      eventMap[key as keyof SCM] = new EventEmitter();
     }
-    this.stateMap = map as StateMap<Args>;
-    this._current = this.stateMap[this._initial];
+    this._eventMap = eventMap as {[K in keyof SCM]: EventEmitter };
   }
 
-  start(props: MachinePropsFromStateClasses<Args>, args = {reset: true}) {
+  start(props: MachinePropsFromStateClasses<SCM>) {
     if(this._running) return;
 
     this._everRan = true;
     this._running = true;
     this.props = props;
 
-    if(args.reset) this._current = this.stateMap[this._initial];
-    this._current._start(props);
+    this._createAndStart(this._initial);
   }
 
   // Given a name, transition to that state
-  transitionTo(state: TransitionNamesOf<Args>) {
+  transitionTo(state: keyof SCM) {
+    // Boilerplate null safety
     if(!this._everRan) throw new Error("State machine was never started");
     if(!this._running) throw new Error("State machine is stopped");
 
-    this._current._stop(this.props);
-    this._current = this.stateMap[state];
-    this._current._start(this.props);
+    this._stopAndClearCurrent();
+    this._createAndStart(state);
   }
 
   stop() {
     if(!this._running) return;
-
     this._running = false;
-    this._current._stop(this.props);
+    this._stopAndClearCurrent();
   }
 
   // This will return true after start has been called, until stop gets called
@@ -181,12 +183,28 @@ export class Machine<Args extends StateClassMap<any>> {
   }
 
   // Returns the current state. Useful for calling state-specific methods beyond start/stop
-  current(): InstanceType<Args[TransitionNamesOf<Args>]> {
+  current(): InstanceType<SCM[keyof SCM]> {
+    if(this._current === null) throw new Error("No current state: was the machine ever started?");
     return this._current;
   }
 
-  // Given a name, returns the state
-  state<T extends TransitionNamesOf<Args>>(name: T): StateMap<Args>[T] {
-    return this.stateMap[name];
+  // Returns an EventEmitter that will fire events when the state of the given `name` does
+  // TODO: Rename this to "events"
+  state(name: keyof SCM): EventEmitter {
+    return this._eventMap[name];
+  }
+
+  private _createAndStart(name: keyof SCM) {
+    const stateClass = this.scm[name];
+    const current = new stateClass(this);
+    this._current = current as InstanceType<SCM[keyof SCM]>;
+    this._currentName = name;
+    current._start(this.props, this._eventMap[name]);
+  }
+
+  private _stopAndClearCurrent() {
+    if(!this._current) throw new Error("Internal error: _current was never initialized");
+    // Stop and clear the old state
+    this._current._stop(this.props, this._eventMap[this._currentName]);
   }
 }
