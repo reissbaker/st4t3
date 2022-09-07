@@ -287,6 +287,18 @@ machine.events.Land.once("start", (state) => {
 });
 ```
 
+### `clear()`
+
+Removes all listeners for all events, effectively resetting the EventEmitter.
+For example:
+
+```typescript
+machine.events.Land.clear();
+```
+
+It's rare you'd want to do this for state machines, but may be useful if you're
+using this as a generic EventEmitter class.
+
 # Nested state machines
 
 You can build nested (also called "heirarchical") state machines by creating
