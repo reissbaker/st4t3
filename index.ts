@@ -84,9 +84,13 @@ export abstract class TransitionTo<NextState extends string, Props extends Machi
     readonly props: Props,
   ) { }
 
-  _start(emitter: StateEventEmitter<this>) { this.start(); emitter.emit("start", this); }
+  // For some reason, TSC freaks out if you use StateEventEmitter<this> even though it should be
+  // able to infer all the way down. Whatever, just use any here; the Machine class makes sure it's
+  // the right emitter.
+  _start(emitter: StateEventEmitter<any>) { this.start(); emitter.emit("start", this); }
   protected start() {}
-  _stop(emitter: StateEventEmitter<this>) { this.stop(); emitter.emit("stop", this); }
+  // Ditto
+  _stop(emitter: StateEventEmitter<any>) { this.stop(); emitter.emit("stop", this); }
   protected stop() {}
 
   transitionTo(state: keyof StateClassMap<NextState>) {
@@ -100,12 +104,12 @@ export abstract class TransitionTo<NextState extends string, Props extends Machi
  */
 
 // A constructor for a state
-type StateClass<T extends string, D extends MachineProps> = {
+export type StateClass<T extends string, D extends MachineProps> = {
   new(machine: Machine<any>, props: D): TransitionTo<T, D>
 };
 
 // The map of names to state classes you pass into the machine
-type StateClassMap<AllTransitions extends string> = {
+export type StateClassMap<AllTransitions extends string> = {
   [K in AllTransitions]: StateClass<any, any>;
 };
 
