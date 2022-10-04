@@ -335,14 +335,15 @@ describe("State machines with initial state args", () => {
 
 describe("Child states", () => {
   class ParentJump extends TransitionTo<'Land'> {
-    readonly jumpState = this.addChild(new Machine({
-      initial: "FirstJump",
-      states: { FirstJump, DoubleJump },
-    }));
-    readonly number = 5;
+    readonly children = {
+      jumpState: new Machine({
+        initial: "FirstJump",
+        states: { FirstJump, DoubleJump },
+      }),
+    };
 
     jump() {
-      this.jumpState.current().jump();
+      this.children.jumpState.current().jump();
     }
 
     land() {
@@ -351,12 +352,14 @@ describe("Child states", () => {
   }
 
   class Land extends TransitionTo<'ParentJump'> {
-    readonly landState = this.addChild(new Machine({
-      initial: "JustLanded",
-      states: {
-        JustLanded, Still
-      },
-    }));
+    readonly children = {
+      landState: new Machine({
+        initial: "JustLanded",
+        states: {
+          JustLanded, Still
+        },
+      }),
+    };
 
     jump() {
       this.transitionTo("ParentJump");
@@ -429,22 +432,28 @@ describe("Child states", () => {
 
   it<Should>("Call start even on deeply nested machines", () => {
     class MostOuter extends TransitionTo<never> {
-      readonly child = this.addChild(new Machine({
-        initial: "Outer",
-        states: { Outer },
-      }));
+      readonly children = {
+        child: new Machine({
+          initial: "Outer",
+          states: { Outer },
+        }),
+      };
     }
     class Outer extends TransitionTo<never> {
-      readonly child = this.addChild(new Machine({
-        initial: "Inner",
-        states: { Inner },
-      }));
+      readonly children = {
+          child: new Machine({
+          initial: "Inner",
+          states: { Inner },
+        })
+      };
     }
     class Inner extends TransitionTo<never> {
-      readonly child = this.addChild(new Machine({
-        initial: "MostInner",
-        states: { MostInner },
-      }));
+      readonly children = {
+        child: new Machine({
+          initial: "MostInner",
+          states: { MostInner },
+        }),
+      };
     }
     class MostInner extends TransitionTo<never> {}
 

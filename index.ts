@@ -78,9 +78,15 @@ export type StateEvents<S extends TransitionTo<any, any>> = {
 };
 export type StateEventEmitter<S extends TransitionTo<any, any>> = EventEmitter<StateEvents<S>>
 
+export type ChildMachine<Props extends MachineProps> = Machine<any, Props>;
+
+export type MachineChildren<Props extends MachineProps> = {
+  [key: string]: ChildMachine<Props>
+};
+
 // The class to extend
 export abstract class TransitionTo<NextState extends string, Props extends MachineProps = {}> {
-  protected readonly children: ChildMachine<Props>[] = [];
+  readonly children?: MachineChildren<Props>;
 
   constructor(
     protected readonly machine: ConstructorMachine<NextState>,
@@ -92,11 +98,14 @@ export abstract class TransitionTo<NextState extends string, Props extends Machi
   // the right emitter.
   _start(emitter: StateEventEmitter<any>) {
     this.start();
-    for(const child of this.children) {
-      child.start({
-        ...this.props,
-        parent: this,
-      });
+    if(this.children) {
+      for(const key in this.children) {
+        const child = this.children[key];
+        child.start({
+          ...this.props,
+          parent: this,
+        });
+      }
     }
     emitter.emit("start", this);
   }
@@ -105,8 +114,11 @@ export abstract class TransitionTo<NextState extends string, Props extends Machi
   // Ditto
   _stop(emitter: StateEventEmitter<any>) {
     this.stop();
-    for(const child of this.children) {
-      child.stop();
+    if(this.children) {
+      for(const key in this.children) {
+        const child = this.children[key];
+        child.stop();
+      }
     }
     emitter.emit("stop", this);
   }
@@ -115,19 +127,12 @@ export abstract class TransitionTo<NextState extends string, Props extends Machi
   transitionTo(state: keyof StateClassMap<NextState>) {
     this.machine.transitionTo(state);
   }
-
-  addChild<T extends ChildMachine<Props>>(machine: T) {
-    this.children.push(machine);
-    return machine;
-  }
 };
 
 /*
  * Type-level definitions
  * =================================================================================================
  */
-
-export type ChildMachine<Props extends MachineProps> = Machine<any, Props>;
 
 // A constructor for a state
 export type StateClass<T extends string, D extends MachineProps> = {
@@ -190,14 +195,15 @@ export type EventsForStates<SCM extends StateClassMap<any>> = {
  * =================================================================================================
  */
 
-export type AllChildMachineNames<State> = {
-  [K in keyof State]: State[K] extends Machine<any, any> ? K : never
-}[keyof State];
+export type AllChildMachineNames<State extends TransitionTo<any, any>> = keyof State['children'];
 
-export type ChildMachineName<Name extends string, State extends { [key: string]: any }> =
-  State[Name] extends Machine<any, any> ? Name : never;
-export type NamedChildMachine<Name extends string, State extends { [key: string]: any }> =
-  State[Name] extends Machine<any, any> ? State[Name] : never;
+export type ChildMachineName<Name extends string, State extends TransitionTo<any, any>> =
+  Name extends AllChildMachineNames<State> ? Name : never;
+
+export type NamedChildMachine<Name extends string, State extends TransitionTo<any, any>> =
+  Name extends AllChildMachineNames<State> ? (
+    State['children'][Name] extends Machine<any, any> ? State['children'][Name] : never
+  ): never;
 
 export class MachineFlyweight<M extends Machine<any, any>> {
   readonly _stateMap: FlyweightStateMap<SCMFrom<M>> = {};
@@ -232,7 +238,7 @@ export class StateFlyweight<
 type FlyweightStateMap<SCM extends StateClassMap<any>> = {
   [K in keyof SCM]?: StateFlyweight<InstanceType<SCM[K]>>
 };
-type FlyweightMachineMap<State> = {
+type FlyweightMachineMap<State extends TransitionTo<any, any>> = {
   [K in AllChildMachineNames<State>]?: MachineFlyweight<any>
 };
 
@@ -314,6 +320,10 @@ export class Machine<SCM extends StateClassMap<any>, Props extends MachinePropsF
     return this.events(this._currentName);
   }
 
+  // Returns the event emitter for the named state. The emitter is technically a StateFlyweight,
+  // which allows you to call .child('machineName') to get an event register for the named
+  // child machine; for example:
+  // `machine.events('StateName').child('nestedChild').events('NestedState').on(...)`
   events<Name extends keyof SCM>(name: Name): StateFlyweight<InstanceType<SCM[Name]>> {
     const cachedState = this._events[name];
     if(cachedState) return cachedState;
@@ -330,15 +340,10 @@ export class Machine<SCM extends StateClassMap<any>, Props extends MachinePropsF
     this._currentName = name;
 
     // Hydrate any newly-created machines from the corresponding flyweights
-    // This is a terrifying mess of typecasts to any, but should be covered by tests
-    const stateDict = current as { [key: string]: any };
-    for(const key in stateDict) {
-      // All states have a reference to the parent machine called `machine`
-      if(key === "machine") continue;
-
-      if(stateDict[key] instanceof Machine) {
+    if(current.children) {
+      for(const key in current.children) {
         const machineMap = this.currentEvents()._machineMap as { [key: string]: MachineFlyweight<any> };
-        if(machineMap[key]) stateDict[key].hydrate(machineMap[key]);
+        if(machineMap[key]) current.children[key].hydrate(machineMap[key]);
       }
     }
 
