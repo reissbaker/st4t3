@@ -68,17 +68,20 @@ export class EventEmitter<Mapping extends EventNameToDataMapping> {
  */
 
 // Utility types to make defining state class constructors less of a hassle:
-export type ConstructorMachine<NextState extends string> = Machine<StateClassMap<NextState>>;
+export type ConstructorMachine<NextState extends string> = Machine<StateClassMap<NextState>, any>;
 export type MachineProps = { [key: string]: any }
 
 // Event emitters for states
-export type StateEventEmitter<S extends TransitionTo<any, any>> = EventEmitter<{
+export type StateEvents<S extends TransitionTo<any, any>> = {
   start: S,
   stop: S,
-}>
+};
+export type StateEventEmitter<S extends TransitionTo<any, any>> = EventEmitter<StateEvents<S>>
 
 // The class to extend
 export abstract class TransitionTo<NextState extends string, Props extends MachineProps = {}> {
+  protected readonly children: ChildMachine<Props>[] = [];
+
   constructor(
     protected readonly machine: ConstructorMachine<NextState>,
     readonly props: Props,
@@ -87,14 +90,35 @@ export abstract class TransitionTo<NextState extends string, Props extends Machi
   // For some reason, TSC freaks out if you use StateEventEmitter<this> even though it should be
   // able to infer all the way down. Whatever, just use any here; the Machine class makes sure it's
   // the right emitter.
-  _start(emitter: StateEventEmitter<any>) { this.start(); emitter.emit("start", this); }
+  _start(emitter: StateEventEmitter<any>) {
+    this.start();
+    for(const child of this.children) {
+      child.start({
+        ...this.props,
+        parent: this,
+      });
+    }
+    emitter.emit("start", this);
+  }
   protected start() {}
+
   // Ditto
-  _stop(emitter: StateEventEmitter<any>) { this.stop(); emitter.emit("stop", this); }
+  _stop(emitter: StateEventEmitter<any>) {
+    this.stop();
+    for(const child of this.children) {
+      child.stop();
+    }
+    emitter.emit("stop", this);
+  }
   protected stop() {}
 
   transitionTo(state: keyof StateClassMap<NextState>) {
     this.machine.transitionTo(state);
+  }
+
+  addChild<T extends ChildMachine<Props>>(machine: T) {
+    this.children.push(machine);
+    return machine;
   }
 };
 
@@ -103,9 +127,11 @@ export abstract class TransitionTo<NextState extends string, Props extends Machi
  * =================================================================================================
  */
 
+export type ChildMachine<Props extends MachineProps> = Machine<any, Props>;
+
 // A constructor for a state
 export type StateClass<T extends string, D extends MachineProps> = {
-  new(machine: Machine<any>, props: D): TransitionTo<T, D>
+  new(machine: Machine<any, any>, props: D): TransitionTo<T, D>
 };
 
 // The map of names to state classes you pass into the machine
@@ -146,12 +172,12 @@ export type MachinePropsFromStateClasses<T extends StateClassMap<any>> = UnionTo
   >
 >;
 
-// This is just useful for debugging type inference
-export type SCMFrom<M> = M extends Machine<infer A> ? A : never;
+// This is useful for generating child event names, and debugging type inference
+export type SCMFrom<M> = M extends Machine<infer A, any> ? A : never;
 
 // Grab the state transition names from either the state class map, or the machine
 export type TransitionNamesOf<M> = M extends StateClassMap<infer T> ? T :
-                               M extends Machine<infer A> ? TransitionNamesOf<A> : never;
+                               M extends Machine<infer A, any> ? TransitionNamesOf<A> : never;
 
 // Utility type to easily express the events for a given state class map
 export type EventsForStates<SCM extends StateClassMap<any>> = {
@@ -159,14 +185,66 @@ export type EventsForStates<SCM extends StateClassMap<any>> = {
 };
 
 /*
+ * Flyweights to call events and child events on, even when the underlying states and child machines
+ * don't exist.
+ * =================================================================================================
+ */
+
+export type AllChildMachineNames<State> = {
+  [K in keyof State]: State[K] extends Machine<any, any> ? K : never
+}[keyof State];
+
+export type ChildMachineName<Name extends string, State extends { [key: string]: any }> =
+  State[Name] extends Machine<any, any> ? Name : never;
+export type NamedChildMachine<Name extends string, State extends { [key: string]: any }> =
+  State[Name] extends Machine<any, any> ? State[Name] : never;
+
+export class MachineFlyweight<M extends Machine<any, any>> {
+  readonly _stateMap: FlyweightStateMap<SCMFrom<M>> = {};
+
+  events<Name extends keyof SCMFrom<M>>(name: string & Name): StateFlyweight<InstanceType<SCMFrom<M>[Name]>> {
+    const cachedState = this._stateMap[name];
+    if(cachedState) return cachedState;
+
+    const state = new StateFlyweight();
+    this._stateMap[name] = state;
+    return state;
+  }
+}
+
+export class StateFlyweight<
+  State extends TransitionTo<any, any>
+> extends EventEmitter<StateEvents<State>> {
+  readonly _machineMap: FlyweightMachineMap<State> = {};
+
+  child<Name extends AllChildMachineNames<State> & string>(
+    name: Name
+  ): MachineFlyweight<NamedChildMachine<Name, State>> {
+    const cachedMachine = this._machineMap[name];
+    if(cachedMachine) return cachedMachine;
+
+    const machine = new MachineFlyweight();
+    this._machineMap[name] = machine;
+    return machine;
+  }
+}
+
+type FlyweightStateMap<SCM extends StateClassMap<any>> = {
+  [K in keyof SCM]?: StateFlyweight<InstanceType<SCM[K]>>
+};
+type FlyweightMachineMap<State> = {
+  [K in AllChildMachineNames<State>]?: MachineFlyweight<any>
+};
+
+/*
  * The machine class that runs and keeps track of states
  * =================================================================================================
  */
-export class Machine<SCM extends StateClassMap<any>> {
-  readonly events: EventsForStates<SCM>;
-  props: MachinePropsFromStateClasses<SCM> | null = null;
+export class Machine<SCM extends StateClassMap<any>, Props extends MachinePropsFromStateClasses<SCM>> {
+  props: Props | null = null;
 
   private scm: SCM;
+  private _events: FlyweightStateMap<SCM> = {};
   private _current: InstanceType<SCM[keyof SCM]> | null = null;
   private _running = false;
   private _everRan = false;
@@ -182,15 +260,9 @@ export class Machine<SCM extends StateClassMap<any>> {
     const args = input.states;
     this._currentName = this._initial = input.initial;
     this.scm = args;
-
-    const eventMap: Partial<EventsForStates<SCM>> = {};
-    for(const key in args) {
-      eventMap[key as keyof SCM] = new EventEmitter();
-    }
-    this.events = eventMap as EventsForStates<SCM>;
   }
 
-  start(props: MachinePropsFromStateClasses<SCM>) {
+  start(props: Props) {
     if(this._running) return;
 
     this._everRan = true;
@@ -198,6 +270,10 @@ export class Machine<SCM extends StateClassMap<any>> {
     this.props = props;
 
     this._createAndStart(this._initial, props);
+  }
+
+  hydrate(flyweight: MachineFlyweight<this>) {
+    this._events = flyweight._stateMap;
   }
 
   // Given a name, transition to that state
@@ -234,8 +310,17 @@ export class Machine<SCM extends StateClassMap<any>> {
 
   // Returns the event emitter for whatever the current state is (or the initial state, if the
   // machine hasn't started yet). Mostly useful for tests.
-  currentEvents(): StateEventEmitter<InstanceType<SCM[keyof SCM]>> {
-    return this.events[this._currentName];
+  currentEvents(): StateFlyweight<InstanceType<SCM[keyof SCM]>> {
+    return this.events(this._currentName);
+  }
+
+  events<Name extends keyof SCM>(name: Name): StateFlyweight<InstanceType<SCM[Name]>> {
+    const cachedState = this._events[name];
+    if(cachedState) return cachedState;
+
+    const state = new StateFlyweight();
+    this._events[name] = state;
+    return state;
   }
 
   private _createAndStart<N extends keyof SCM>(name: N, props: MachinePropsFromStateClasses<SCM>) {
@@ -243,12 +328,26 @@ export class Machine<SCM extends StateClassMap<any>> {
     const current = new stateClass(this, props) as InstanceType<SCM[N]>;
     this._current = current as InstanceType<SCM[keyof SCM]>;
     this._currentName = name;
-    current._start(this.events[name]);
+
+    // Hydrate any newly-created machines from the corresponding flyweights
+    // This is a terrifying mess of typecasts to any, but should be covered by tests
+    const stateDict = current as { [key: string]: any };
+    for(const key in stateDict) {
+      // All states have a reference to the parent machine called `machine`
+      if(key === "machine") continue;
+
+      if(stateDict[key] instanceof Machine) {
+        const machineMap = this.currentEvents()._machineMap as { [key: string]: MachineFlyweight<any> };
+        if(machineMap[key]) stateDict[key].hydrate(machineMap[key]);
+      }
+    }
+
+    current._start(this.events(name));
   }
 
   private _stopCurrent() {
     if(!this._current) throw new Error("Internal error: _current was never initialized");
     // Stop and clear the old state
-    this._current._stop(this.events[this._currentName]);
+    this._current._stop(this.events(this._currentName));
   }
 }
