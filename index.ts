@@ -78,15 +78,20 @@ export type StateEvents<S extends TransitionTo<any, any>> = {
 };
 export type StateEventEmitter<S extends TransitionTo<any, any>> = EventEmitter<StateEvents<S>>
 
-export type ChildMachine<Props extends MachineProps> = Machine<any, Props>;
+type RemoveParent<Props extends MachineProps> = {
+  [K in Exclude<keyof Props, 'parent'>]: Props[K];
+};
 
-export type MachineChildren<Props extends MachineProps> = {
-  [key: string]: ChildMachine<Props>
+export type ChildMachine<NextState extends string, Props extends MachineProps> =
+  Machine<any, RemoveParent<Props> & ({ parent: TransitionTo<NextState, Props> } | {})>;
+
+export type MachineChildren<NextState extends string, Props extends MachineProps> = {
+  [key: string]: ChildMachine<NextState, Props>
 };
 
 // The class to extend
 export abstract class TransitionTo<NextState extends string, Props extends MachineProps = {}> {
-  readonly children?: MachineChildren<Props>;
+  readonly children?: MachineChildren<NextState, Props>;
 
   constructor(
     protected readonly machine: ConstructorMachine<NextState>,
@@ -168,10 +173,10 @@ export type MachinePropsByStates<T extends StateClassMap<any>> = {
 export type MachinePropsUnion<T extends { [key: string]: MachineProps }> = T[keyof T];
 // This crazy type puts a union type into a contravariant type position, forcing it into an
 // intersection type
-export type UnionToIntersection<T> =
+export type Contravariant<T> =
   (T extends any ? (contra: T) => void : never) extends ((contra: infer I) => void) ? I : never;
 // Tie it all together to get the intersection of all machine data from the state class map:
-export type MachinePropsFromStateClasses<T extends StateClassMap<any>> = UnionToIntersection<
+export type MachinePropsFromStateClasses<T extends StateClassMap<any>> = Contravariant<
   MachinePropsUnion<
     MachinePropsByStates<T>
   >

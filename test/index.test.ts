@@ -475,4 +475,61 @@ describe("Child states", () => {
     machine.start({});
     expect(mock).toHaveBeenCalledOnce();
   });
+
+  it<Should>("pass a reference to the parent state in the props that can be called", () => {
+    // First let's define the outer states
+    type Props = { hello: string };
+    class First extends TransitionTo<'Second', Props> {
+      readonly children = {
+        inner: new Machine({
+          initial: "Inner",
+          states: { Inner },
+        }),
+      };
+
+      next() {
+        this.children.inner.current().next();
+      }
+    }
+
+    class Second extends TransitionTo<never> {
+      next() {
+      }
+    }
+
+    // Here's a nested state with a parent of First
+    class Inner extends TransitionTo<never, Props & { parent: First }> {
+      readonly children = {
+        mostInner: new Machine({
+          initial: "MostInner",
+          states: { MostInner },
+        }),
+      }
+      next() {
+        this.children.mostInner.current().next();
+      }
+      transitionParent() {
+        this.props.parent.transitionTo("Second");
+      }
+    }
+
+    // Now let's define an even more-deeply nested state with a parent of Inner. This should
+    // typecheck, because `parent` is the only key allowed to differ in the props
+    class MostInner extends TransitionTo<never, Props & { parent: Inner }> {
+      next() {
+        this.props.parent.transitionParent();
+      }
+    }
+
+    const machine = new Machine({
+      initial: "First",
+      states: { First, Second },
+    });
+
+    const mock = machine.events("Second").on("start", vi.fn());
+    expect(mock).toHaveBeenCalledTimes(0);
+    machine.start({ hello: "world" });
+    machine.current().next();
+    expect(mock).toHaveBeenCalledOnce();
+  });
 });
