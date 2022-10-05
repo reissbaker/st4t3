@@ -212,8 +212,9 @@ only get to reset them when you call `stop()` and then a new invocation of
 
 State machines emit events when they start and stop, and you can listen to them
 via a slimmed-down version of the NodeJS EventEmitter API. All state
-EventEmitters are stored on `machine.events[StateClassName]`; for example, to
-register for the `Jump` class's `start` event, you'd do the following:
+EventEmitters are accessible from `machine.events('StateClassName')`; for
+example, to register for the `Jump` class's `start` event, you'd do the
+following:
 
 ```typescript
 machine.events("Jump").on("start", (state: Jump) => {
