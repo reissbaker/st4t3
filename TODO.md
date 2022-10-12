@@ -127,8 +127,8 @@ API sketches:
 ```typescript
 // typed events, picking from a global hash of events
 export default s.state<
-  s.PickEvents<Events, "eventA" | "eventB">,
-  Props,
+  s.PickFields<Events, "eventA" | "eventB">,
+  s.PickFields<Props, "someProp">,
   s.Parent<s.PickEvents<Events, "eventC">>,
 >((goto, props, parent) => {
   return {
@@ -143,8 +143,8 @@ type PrivateEvents = {
 };
 
 export default s.state<
-  s.PickEvents<Events, "eventA"> & PrivateEvents,
-  Props,
+  s.PickFields<Events, "eventA"> & PrivateEvents,
+  s.PickFields<Props, "someProp">,
   s.Parent<s.PickEvents<Events, "eventC">>
 >((goto, props, parent) => {
 });
