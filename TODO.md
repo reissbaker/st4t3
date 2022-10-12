@@ -134,8 +134,9 @@ const StateA = s.transitionTo<
 >((state, parent) => {
   // Use builder functions to enforce that unspecified keys are errors.
   // Otherwise you could accidentally leave in events that you don't listen to.
-  // .goto is the transition fn
-  // .props are where the props are
+  // state.goto is the transition fn
+  // state.props are where the props are
+  // parent.dispatch is how to send events to the parent
   return state.build({
     events: {
       eventA() {
@@ -172,6 +173,7 @@ machine.start({
   // Probably can do type magic to take T where T extends Partial<Props>, and
   // return U where U is the subset of props in Props that are unspecified in T
 });
+machine.dispatch("eventA", /* ... */);
 
 // Unfortunately the .machine().build({ ... }) structure is required, because
 // it's annoying to have to split out SpecifiedProps vs UnspecifiedProps, and
