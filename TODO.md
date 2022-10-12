@@ -126,15 +126,21 @@ API sketches:
 
 ```typescript
 // typed events, picking from a global hash of events
-export default s.state<
+export default s.transitionTo<
+  "StateB",
   Pick<Events, "eventA" | "eventB">,
   Pick<Props, "someProp">,
   s.Parent<Pick<Events, "eventC">>,
 >((goto, props, parent) => {
-  return {
+  // Use constructor functions to enforce that unspecified keys are errors.
+  // Otherwise you could accidentally leave in events that you don't listen to.
+  return new State({
     events: {
+      eventA() {
+        goto("StateA");
+      },
     },
-  }
+  });
 });
 
 // Can make semi-private events (not able to be called on machine) like so:
@@ -142,7 +148,8 @@ type PrivateEvents = {
   // ...
 };
 
-export default s.state<
+export default s.transitionTo<
+  "StateA",
   Pick<Events, "eventA"> & PrivateEvents,
   Pick<Props, "someProp">,
   s.Parent<Pick<Events, "eventC">>
@@ -171,4 +178,13 @@ machine.start({
 // inferred. Thus, you need an intermediate function that is fully specified,
 // returning a function that infers the difference between SpecifiedProps and
 // UnspecifiedProps.
+
+
+// Fun trick to emulate nominal typing:
+export class A {
+  private b() {}
+}
+// Use this to enforce State objects are returned, and not the raw input to the
+// state classes; you'd need to not only define the useless method `b` (or
+// whatever), you'd also need to make it private. Very little code bloat cost!
 ```
