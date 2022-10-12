@@ -126,7 +126,7 @@ API sketches:
 
 ```typescript
 // typed events, picking from a global hash of events
-export default s.transitionTo<
+const StateA = s.transitionTo<
   "StateB",
   Pick<Events, "eventA" | "eventB">,
   Pick<Props, "someProp">,
@@ -150,7 +150,7 @@ type PrivateEvents = {
   // ...
 };
 
-export default s.transitionTo<
+const StateB = s.transitionTo<
   "StateA",
   Pick<Events, "eventA"> & PrivateEvents,
   Pick<Props, "someProp">,
