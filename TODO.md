@@ -131,13 +131,15 @@ export default s.transitionTo<
   Pick<Events, "eventA" | "eventB">,
   Pick<Props, "someProp">,
   s.Parent<Pick<Events, "eventC">>,
->((goto, props, parent) => {
-  // Use constructor functions to enforce that unspecified keys are errors.
+>((state, parent) => {
+  // Use builder functions to enforce that unspecified keys are errors.
   // Otherwise you could accidentally leave in events that you don't listen to.
-  return new State({
+  // .goto is the transition fn
+  // .props are where the props are
+  return state.build({
     events: {
       eventA() {
-        goto("StateA");
+        state.goto("StateA");
       },
     },
   });
@@ -153,7 +155,7 @@ export default s.transitionTo<
   Pick<Events, "eventA"> & PrivateEvents,
   Pick<Props, "someProp">,
   s.Parent<Pick<Events, "eventC">>
->((goto, props, parent) => {
+>((state, parent) => {
 });
 
 
