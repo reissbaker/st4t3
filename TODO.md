@@ -121,3 +121,54 @@ Otherwise you'll get memory leaks and/or weird behavior when your state "stops"
 but hasn't cleaned up emitters it registered to. You can handle arbitrary
 node-like EventEmitter APIs, not just your own, so that it works with
 everything.
+
+API sketches:
+
+```typescript
+// typed events, picking from a global hash of events
+export default s.state<
+  s.PickEvents<Events, "eventA" | "eventB">,
+  Props,
+  s.Parent<s.PickEvents<Events, "eventC">>,
+>((goto, props, parent) => {
+  return {
+    events: {
+    },
+  }
+});
+
+// Can make semi-private events (not able to be called on machine) like so:
+type PrivateEvents = {
+  // ...
+};
+
+export default s.state<
+  s.PickEvents<Events, "eventA"> & PrivateEvents,
+  Props,
+  s.Parent<s.PickEvents<Events, "eventC">>
+>((goto, props, parent) => {
+});
+
+
+// Machines require explicit typing
+const machine = s.machine<Events, Props>.build({
+  initial: "StateA",
+  states: { StateA, StateB },
+  staticProps: {
+    // Must be a Partial<Props>
+  },
+});
+machine.start({
+  // Must be a Partial<Props>, and this & staticProps must be a Props
+  // Probably can do type magic to take T where T extends Partial<Props>, and
+  // return U where U is the subset of props in Props that are unspecified in T
+});
+
+// Unfortunately the .machine().build({ ... }) structure is required, because
+// it's annoying to have to split out SpecifiedProps vs UnspecifiedProps, and
+// we want that to be inferred from staticProps; classes don't allow partial
+// inference of type params: you either fully specify them or have them fully
+// inferred. Thus, you need an intermediate function that is fully specified,
+// returning a function that infers the difference between SpecifiedProps and
+// UnspecifiedProps.
+```
