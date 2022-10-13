@@ -128,9 +128,9 @@ API sketches:
 // typed events, picking from a global hash of events
 const StateA = s.transitionTo<
   "StateB",
-  Pick<Events, "eventA" | "eventB">,
+  Pick<Messages, "msgA" | "msgB">,
   Pick<Props, "someProp">,
-  s.Parent<Pick<Events, "eventC">>,
+  s.Parent<Pick<Messages, "msgC">>,
 >((state, parent) => {
   // Use builder functions to enforce that unspecified keys are errors.
   // Otherwise you could accidentally leave in events that you don't listen to.
@@ -138,8 +138,8 @@ const StateA = s.transitionTo<
   // state.props are where the props are
   // parent.dispatch is how to send events to the parent
   return state.build({
-    events: {
-      eventA() {
+    messages: {
+      msgA() {
         state.goto("StateA");
       },
     },
@@ -147,21 +147,21 @@ const StateA = s.transitionTo<
 });
 
 // Can make semi-private events (not able to be called on machine) like so:
-type PrivateEvents = {
+type PrivateMessages = {
   // ...
 };
 
 const StateB = s.transitionTo<
   "StateA",
-  Pick<Events, "eventA"> & PrivateEvents,
+  Pick<Messages, "msgA"> & PrivateMessages,
   Pick<Props, "someProp">,
-  s.Parent<Pick<Events, "eventC">>
+  s.Parent<Pick<Messages, "msgC">>
 >((state, parent) => {
 });
 
 
 // Machines require explicit typing
-const machine = s.machine<Events, Props>.build({
+const machine = s.machine<Messages, Props>.build({
   initial: "StateA",
   states: { StateA, StateB },
   staticProps: {
@@ -173,7 +173,7 @@ machine.start({
   // Probably can do type magic to take T where T extends Partial<Props>, and
   // return U where U is the subset of props in Props that are unspecified in T
 });
-machine.dispatch("eventA", /* ... */);
+machine.dispatch("msgA", /* ... */);
 
 // Unfortunately the .machine().build({ ... }) structure is required, because
 // it's annoying to have to split out SpecifiedProps vs UnspecifiedProps, and
