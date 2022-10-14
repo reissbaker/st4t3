@@ -40,7 +40,6 @@ describe("State Machines", () => {
       states: {
         Foo, Bar, Final
       },
-      staticProps: {},
     });
   }
 
@@ -267,7 +266,6 @@ describe("State machines with messages that take arguments", () => {
     return state.machine<Messages>().build({
       initial: 'Still',
       states: { Still, Idle },
-      staticProps: {},
     });
   }
 
@@ -331,7 +329,6 @@ describe("State machines with props", () => {
       states: {
         Jump, Land
       },
-      staticProps: {},
     });
   }
 
@@ -408,7 +405,6 @@ describe("Child states", () => {
       jumpState: state.machine<Messages>().build({
         initial: 'FirstJump',
         states: { FirstJump, DoubleJump },
-        staticProps: {},
       }),
     },
     messages: {
@@ -432,7 +428,6 @@ describe("Child states", () => {
       landState: state.machine().build({
         initial: 'JustLanded',
         states: { JustLanded, Still },
-        staticProps: {},
       }),
     },
     messages: {
@@ -449,7 +444,6 @@ describe("Child states", () => {
       states: {
         ParentJump, Land,
       },
-      staticProps: {},
     });
   }
 
@@ -499,7 +493,6 @@ describe("Child states", () => {
         child: state.machine().build({
           initial: "MostInner",
           states: { MostInner },
-          staticProps: {},
         }),
       },
       messages: {},
@@ -510,7 +503,6 @@ describe("Child states", () => {
         child: state.machine().build({
           initial: "Inner",
           states: { Inner },
-          staticProps: {},
         }),
       },
       messages: {},
@@ -521,7 +513,6 @@ describe("Child states", () => {
         child: state.machine().build({
           initial: "Outer",
           states: { Outer },
-          staticProps: {},
         }),
       },
       messages: {},
@@ -530,7 +521,6 @@ describe("Child states", () => {
     const machine = state.machine().build({
       initial: "MostOuter",
       states: { MostOuter },
-      staticProps: {},
     });
 
     const mock = machine

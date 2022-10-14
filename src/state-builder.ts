@@ -306,10 +306,29 @@ type DefinedKeys<Some> = {
 }[keyof Some];
 type Rest<Full, Some extends Partial<Full>> = Omit<Full, DefinedKeys<Some>>;
 
+type NoStaticPropsArgs<B extends BuilderMap<any, any>> = {
+  initial: keyof B,
+  states: B,
+};
 class MachineBuilder<M extends BaseMessages, Props extends {}> {
-  build<B extends BuilderMap<any, M>, StaticProps extends Partial<Props>>(args: MachineArgs<M, B, StaticProps>) {
-    return new Machine<M, B, StaticProps, Rest<Props, StaticProps>>(args);
+  build<B extends BuilderMap<any, M>>(args: NoStaticPropsArgs<B>): Machine<M, B, {}, Props>;
+  build<B extends BuilderMap<any, M>, StaticProps extends Partial<Props>>(
+    args: MachineArgs<M, B, StaticProps>
+  ): Machine<M, B, StaticProps, Rest<Props, StaticProps>>;
+  build(args: NoStaticPropsArgs<any> | MachineArgs<any, any, any>) {
+    if(hasStaticProps(args)) return new Machine(args);
+
+    return new Machine({
+      ...args,
+      staticProps: {},
+    });
   }
+}
+
+function hasStaticProps<N extends NoStaticPropsArgs<any>, M extends MachineArgs<any, any, any>>(
+  args: N | M
+): args is M {
+  return (args as MachineArgs<any, any, any>).staticProps !== undefined;
 }
 
 export function machine<M extends BaseMessages = {}, Props extends {} = {}>(): MachineBuilder<M, Props> {
