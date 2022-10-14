@@ -278,9 +278,9 @@ describe("State machines with messages that take arguments", () => {
 
   it<Should>("pass along the arguments", ({ machine }) => {
     machine.start({});
-    expect(machine.current()).toStrictEqual("Still");
+    expect(machine.current()).toStrictEqual("Stopped");
     machine.dispatch("update", 600, 600);
-    expect(machine.current()).toStrictEqual("Still");
+    expect(machine.current()).toStrictEqual("Stopped");
     machine.dispatch("update", 600, 1200);
     expect(machine.current()).toStrictEqual("Idle");
   });
