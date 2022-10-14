@@ -312,6 +312,6 @@ class MachineBuilder<M extends BaseMessages, Props extends {}> {
   }
 }
 
-export function machine<M extends BaseMessages, Props extends {}>(): MachineBuilder<M, Props> {
+export function machine<M extends BaseMessages = {}, Props extends {} = {}>(): MachineBuilder<M, Props> {
   return new MachineBuilder();
 }

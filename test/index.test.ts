@@ -35,7 +35,7 @@ describe("State Machines", () => {
   }));
 
   function machine() {
-    return state.machine<Messages, {}>().build({
+    return state.machine<Messages>().build({
       initial: "Foo",
       states: {
         Foo, Bar, Final
@@ -264,7 +264,7 @@ describe("State machines with messages that take arguments", () => {
   }));
 
   function machine() {
-    return state.machine<Messages, {}>().build({
+    return state.machine<Messages>().build({
       initial: 'Still',
       states: { Still, Idle },
       staticProps: {},
@@ -405,7 +405,7 @@ describe("Child states", () => {
 
   const ParentJump = state.transitionTo<'Land', Messages>(s => s.build({
     children: {
-      jumpState: state.machine<Messages, {}>().build({
+      jumpState: state.machine<Messages>().build({
         initial: 'FirstJump',
         states: { FirstJump, DoubleJump },
         staticProps: {},
@@ -429,7 +429,7 @@ describe("Child states", () => {
 
   const Land = state.transitionTo<'ParentJump', Messages>(s => s.build({
     children: {
-      landState: state.machine<{}, {}>().build({
+      landState: state.machine().build({
         initial: 'JustLanded',
         states: { JustLanded, Still },
         staticProps: {},
@@ -444,7 +444,7 @@ describe("Child states", () => {
   }));
 
   function jumpMachine() {
-    return state.machine<Messages, {}>().build({
+    return state.machine<Messages>().build({
       initial: "Land",
       states: {
         ParentJump, Land,
@@ -496,7 +496,7 @@ describe("Child states", () => {
 
     const Inner = state.transitionTo<never>(s => s.build({
       children: {
-        child: state.machine<{}, {}>().build({
+        child: state.machine().build({
           initial: "MostInner",
           states: { MostInner },
           staticProps: {},
@@ -507,7 +507,7 @@ describe("Child states", () => {
 
     const Outer = state.transitionTo<never>(s => s.build({
       children: {
-        child: state.machine<{}, {}>().build({
+        child: state.machine().build({
           initial: "Inner",
           states: { Inner },
           staticProps: {},
@@ -518,7 +518,7 @@ describe("Child states", () => {
 
     const MostOuter = state.transitionTo<never>(s => s.build({
       children: {
-        child: state.machine<{}, {}>().build({
+        child: state.machine().build({
           initial: "Outer",
           states: { Outer },
           staticProps: {},
@@ -527,7 +527,7 @@ describe("Child states", () => {
       messages: {},
     }));
 
-    const machine = state.machine<{}, {}>().build({
+    const machine = state.machine().build({
       initial: "MostOuter",
       states: { MostOuter },
       staticProps: {},
