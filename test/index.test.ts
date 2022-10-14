@@ -1,51 +1,51 @@
 import { vi, expect, it, describe, beforeEach } from "vitest";
-import { TransitionTo, Machine, AllChildMachineNames } from "../index";
+import { TransitionTo, Machine } from "../index";
+import * as state from "../src/state-builder";
 
-function withMockFn(klass: { prototype: any }, name: string, cb: (m: ReturnType<typeof vi.fn>) => any) {
-  const original = klass.prototype[name];
-  try {
-    const mock = klass.prototype[name] = vi.fn();
-    cb(mock);
-  } finally {
-    klass.prototype[name] = original;
-  }
-}
+type Messages = {
+  next(): void,
+  end(): void,
+};
 
-abstract class Base extends TransitionTo<"Bar" | "Foo" | "Final"> {
-  test() {}
-}
+const Foo = state.transitionTo<"Bar" | "Final", Messages>((state) => {
+  return state.build({
+    messages: {
+      next() {
+        state.goto("Bar");
+      },
+      end() {
+        state.goto("Final");
+      },
+    },
+  });
+});
 
-class Foo extends Base {
-  next() {
-    this.transitionTo("Bar");
-  }
-  end() {
-    this.transitionTo("Final");
-  }
-  foo() {}
-}
+const Bar = state.transitionTo<"Foo" | "Final", Messages>((state) => {
+  return state.build({
+    messages: {
+      next() {
+        state.goto("Foo");
+      },
+      end() {
+        state.goto("Final");
+      },
+    },
+  });
+});
 
-class Bar extends Base {
-  next() {
-    this.transitionTo("Foo");
-  }
-  end() {
-    this.transitionTo("Final");
-  }
-}
-
-class Final extends TransitionTo<never> {
-  test() {}
-  next() {}
-  end() {}
-}
+const Final = state.transitionTo<never>((state) => {
+  return state.build({
+    messages: {},
+  });
+});
 
 function machine() {
-  return new Machine({
+  return state.machine<Messages, {}>().build({
     initial: "Foo",
     states: {
       Foo, Bar, Final
     },
+    staticProps: {},
   });
 }
 
@@ -61,7 +61,7 @@ describe("State Machines", () => {
 
   it<Should>("set the current state to the initial transition string on start", ({ machine }) => {
     machine.start({});
-    expect(machine.current()).toBeInstanceOf(Foo);
+    expect(machine.current()).toStrictEqual("Foo");
   });
 
   it<Should>("start the current state when started", ({ machine }) => {
@@ -78,33 +78,25 @@ describe("State Machines", () => {
     expect(spy).toHaveBeenCalledOnce();
   });
 
-  it<Should>("allow accessing methods on #current() that all states define", ({ machine }) => {
-    withMockFn(Foo, "test", (spy) => {
-      machine.start({});
-      machine.current().test();
-      expect(spy).toHaveBeenCalledOnce();
-    });
-  });
-
   it<Should>("allow transitions between states", ({ machine }) => {
     machine.start({});
-    expect(machine.current()).toBeInstanceOf(Foo);
-    machine.current().next();
-    expect(machine.current()).toBeInstanceOf(Bar);
+    expect(machine.current()).toStrictEqual("Foo");
+    machine.dispatch("next");
+    expect(machine.current()).toStrictEqual("Bar");
   });
 
   it<Should>("call stop on states when transitioning off of them", ({ machine }) => {
     const spy = machine.currentEvents().on("stop", vi.fn());
     machine.start({});
     expect(spy).toHaveBeenCalledTimes(0);
-    machine.current().next();
+    machine.dispatch("next");
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it<Should>("call start on states when transitioning into them", ({ machine }) => {
     const spy = machine.events('Bar').on("start", vi.fn());
     machine.start({});
-    machine.current().next();
+    machine.dispatch("next");
     expect(spy).toHaveBeenCalledOnce();
   });
 
@@ -119,7 +111,7 @@ describe("State Machines", () => {
       stopCalls++;
     });
     machine.start({});
-    machine.current().next();
+    machine.dispatch("next");
     expect(startCalls).toEqual(1);
   });
 
@@ -137,21 +129,22 @@ describe("State Machines", () => {
 
   it<Should>("reset to the initial state after a new start call", ({ machine }) => {
     machine.start({});
-    expect(machine.current()).toBeInstanceOf(Foo);
-    machine.current().next();
-    expect(machine.current()).toBeInstanceOf(Bar);
+    expect(machine.current()).toStrictEqual("Foo");
+    machine.dispatch("next");
+    expect(machine.current()).toStrictEqual("Bar");
     machine.stop();
-    expect(machine.current()).toBeInstanceOf(Bar);
+    expect(machine.current()).toStrictEqual("Bar");
     machine.start({});
-    expect(machine.current()).toBeInstanceOf(Foo);
+    expect(machine.current()).toStrictEqual("Foo");
   });
 
   it<Should>("not reset on multiple start calls in a row", ({ machine }) => {
     machine.start({});
-    expect(machine.current()).toBeInstanceOf(Foo);
-    machine.current().next();
+    expect(machine.current()).toStrictEqual("Foo");
+    machine.dispatch("next");
+    expect(machine.current()).toStrictEqual("Bar");
     machine.start({});
-    expect(machine.current()).toBeInstanceOf(Bar);
+    expect(machine.current()).toStrictEqual("Bar");
   });
 
   it<Should>("only call start() on states once for repeated start invocations", ({ machine }) => {
@@ -193,17 +186,13 @@ describe("State Machines", () => {
   });
 
   it<Should>("throw a useful error upon transition if it was never started", ({ machine }) => {
-    expect(() => machine.transitionTo("Bar")).toThrowError("State machine was never started");
-  });
-
-  it<Should>("throw a useful error on current() if it was never started", ({ machine }) => {
-    expect(() => machine.current()).toThrowError("No current state: was the machine ever started?");
+    expect(() => machine.goto("Bar")).toThrowError("State machine was never started");
   });
 
   it<Should>("throw a useful error upon transition if it was stopped", ({ machine }) => {
     machine.start({});
     machine.stop();
-    expect(() => machine.current().next()).toThrowError("State machine is stopped");
+    expect(() => machine.dispatch("next")).toThrowError("State machine is stopped");
   });
 
   it<Should>("unregister once() listeners after the first invocation", ({ machine }) => {
@@ -238,11 +227,11 @@ describe("State Machines", () => {
 
   it<Should>("not transition to a duplicate of the current state", ({ machine }) => {
     machine.start({});
-    expect(machine.current()).toBeInstanceOf(Foo);
-    withMockFn(Foo, "start", (spy) => {
-      machine.transitionTo("Foo");
-      expect(spy).toHaveBeenCalledTimes(0);
-    });
+    expect(machine.current()).toStrictEqual("Foo");
+
+    const spy = machine.currentEvents().on("start", vi.fn());
+    machine.goto("Foo");
+    expect(spy).toHaveBeenCalledTimes(0);
   });
 
   it<Should>("remove handlers for a state event when you call clear()", ({ machine }) => {
@@ -254,31 +243,48 @@ describe("State Machines", () => {
 });
 
 
-describe("State machines with initial state args", () => {
-  class Jump extends TransitionTo<'Land', { allowDoubleJumps: boolean }> {
-    jump() {}
-    land() {
-      this.transitionTo('Land');
-    }
-  }
+describe("State machines with props", () => {
+  type Messages = {
+    jump(): void,
+    land(): void,
+  };
+  type Props = {
+    allowDoubleJumps: boolean,
+    bounceOnLand: boolean,
+  };
+  const Jump = state.transitionTo<'Land', Messages, Pick<Props, 'allowDoubleJumps'>>((state) => {
+    return state.build({
+      messages: {
+        jump() {},
+        land() {
+          state.goto('Land');
+        },
+      }
+    });
+  });
 
-  class Land extends TransitionTo<'Jump', { bounceOnLand: boolean }> {
-    land() {}
-    jump() {
-      this.transitionTo('Jump');
-    }
-  }
+  const Land = state.transitionTo<'Jump', Messages, Pick<Props, 'bounceOnLand'>>((state) => {
+    return state.build({
+      messages: {
+        land() {},
+        jump() {
+          state.goto('Jump');
+        },
+      },
+    });
+  });
 
   const jumpProps = {
     allowDoubleJumps: false,
     bounceOnLand: true,
   };
   function jumpMachine() {
-    return new Machine({
+    return state.machine<Messages, Props>().build({
       initial: "Land",
       states: {
         Jump, Land
-      }
+      },
+      staticProps: {},
     });
   }
 
@@ -292,8 +298,8 @@ describe("State machines with initial state args", () => {
   });
 
   it<Should>("set the initial state args as the state's props", ({ machine }) => {
-    const spy = vi.fn((state: Land) => {
-      expect(state.props).toBe(jumpProps);
+    const spy = vi.fn((props: Props) => {
+      expect(props).toStrictEqual(jumpProps);
     });
     machine.events('Land').on("start", spy);
     machine.start(jumpProps);
@@ -301,18 +307,18 @@ describe("State machines with initial state args", () => {
   });
 
   it<Should>("set the state args as props on transition to the next state", ({ machine }) => {
-    const spy = vi.fn((state: Jump) => {
-      expect(state.props).toBe(jumpProps);
+    const spy = vi.fn((props: Props) => {
+      expect(props).toStrictEqual(jumpProps);
     });
     machine.events('Jump').on("start", spy);
     machine.start(jumpProps);
-    machine.current().jump();
+    machine.dispatch("jump");
     expect(spy).toHaveBeenCalledOnce();
   });
 
   it<Should>("allow the props to be set to new data after a stop", ({ machine }) => {
-    const firstStart = vi.fn((state: Land) => {
-      expect(state.props).toBe(jumpProps);
+    const firstStart = vi.fn((props: Props) => {
+      expect(props).toStrictEqual(jumpProps);
     });
     machine.events('Land').once("start", firstStart);
     machine.start(jumpProps);
@@ -322,8 +328,8 @@ describe("State machines with initial state args", () => {
       allowDoubleJumps: true,
       bounceOnLand: false,
     };
-    const secondStart = vi.fn((state: Land) => {
-      expect(state.props).toBe(nextJumpProps);
+    const secondStart = vi.fn((props: Props) => {
+      expect(props).toStrictEqual(nextJumpProps);
     });
     machine.events('Land').once("start", secondStart);
     machine.stop();

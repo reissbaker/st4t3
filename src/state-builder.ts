@@ -1,5 +1,9 @@
-type Messages = {
-  stop?: never,
+import { EventEmitter } from "./event-emitter";
+
+type BaseMessages = {
+  stop?: () => any,
+} & {
+  [key: string]: undefined | ((...args: any) => any),
 };
 
 /*
@@ -7,37 +11,9 @@ type Messages = {
  * =================================================================================================
  */
 
-type BuildArgs<M extends Messages, Props extends {}> = {
-  children?: {
-    [key: string]: Machine<Partial<M>, any, any, Partial<Props>>,
-  },
-  messages: {
-    [K in keyof M]: (data: M[K]) => any;
-  },
-};
-
-export type StateFunction<
-  Next extends string, M extends Messages, Props extends {}
-> = (
-  machine: Machine<M, BuilderMap<Next, any>, any, any>,
-  props: Props
-) => StateDispatcher<M, Props>;
-
-export function transitionTo<
-  Next extends string,
-  M extends Messages = {},
-  Props extends {} = {}
->(
-  buildFn: (builder: StateBuilder<Next, M, Props>) => StateDispatcher<M, Props>
-): StateFunction<Next, M, Props> {
-  return (machine, props) => {
-    return buildFn(new StateBuilder<Next, M, Props>(machine, props));
-  };
-}
-
-export class StateBuilder<Next extends string, M extends Messages, Props extends {}> {
+export class StateBuilder<Next extends string, M extends BaseMessages, Props extends {}> {
   constructor(
-    private readonly machine: Machine<M, BuilderMap<Next, any>, any, any>,
+    private readonly machine: Machine<Partial<M>, BuilderMap<Next, any>, any, any>,
     readonly props: Props
   ) {}
 
@@ -52,7 +28,7 @@ export class StateBuilder<Next extends string, M extends Messages, Props extends
       }
     }
 
-    return new StateDispatcher(args);
+    return new StateDispatcher(args, this.props);
   }
 
   goto(next: Next & string) {
@@ -60,27 +36,137 @@ export class StateBuilder<Next extends string, M extends Messages, Props extends
   }
 }
 
+type BuildArgs<M extends BaseMessages, Props extends {}> = {
+  children?: Children<M, Props>,
+  messages: M,
+};
+
+type Children<M extends BaseMessages, Props extends {}> = {
+  [key: string]: Machine<Partial<M>, any, any, Partial<Props>>,
+};
+
+export function transitionTo<
+  Next extends string,
+  M extends BaseMessages = {},
+  Props extends {} = {}
+>(
+  buildFn: (builder: StateBuilder<Next, M, Props>) => StateDispatcher<M, Props>
+): StateFunction<Next, M, Props> {
+  return (machine, props) => {
+    return buildFn(new StateBuilder<Next, M, Props>(machine, props));
+  };
+}
+
+export type StateFunction<
+  Next extends string, M extends BaseMessages, Props extends {}
+> = (
+  machine: Machine<M, BuilderMap<Next, any>, any, any>,
+  props: Props
+) => StateDispatcher<M, Props>;
+
 /*
  * Message dispatching for states
  * =================================================================================================
  */
 
-export class StateDispatcher<M extends Messages, Props extends {}> {
-  constructor(
-    private readonly args: BuildArgs<M, Props>
-  ) {}
+export class StateDispatcher<M extends BaseMessages, Props extends {}> {
+  readonly hasChildren: boolean; // dumb micro optimization for cpu branch predictor
+  readonly children: Children<M, Props>;
 
-  dispatch<Name extends keyof M>(name: Name, data: M[Name]) {
-    if(this.args.children) {
-      for(const key in this.args.children) {
-        const child = this.args.children[key];
-        child.dispatch(name, data);
+  constructor(
+    private readonly args: BuildArgs<M, Props>,
+    private readonly props: Props
+  ) {
+    this.children = args.children || {};
+    this.hasChildren = !!args.children;
+  }
+
+  dispatch<Name extends keyof M>(
+    name: Name,
+    emitter: EventEmitter<StateEvents<Props>> | undefined,
+    ...data: Name extends "stop" ? [] : Params<M[Name]>
+  ) {
+    if(this.hasChildren) {
+      for(const key in this.children) {
+        const child = this.children[key];
+        child.dispatch(name, ...data);
       }
     }
-    if(this.args.messages[name]) {
-      this.args.messages[name](data);
+
+    const handler = this.args.messages[name];
+    if(handler) {
+      const d = data as any[];
+      handler(...d);
+    }
+
+    if(emitter && name === "stop") emitter.emit("stop", this.props);
+  }
+}
+
+type Params<T> = T extends (...args: any) => any ? Parameters<T> : [];
+
+/*
+ * Flyweights for event registration
+ * =================================================================================================
+ */
+
+export type StateEvents<Props extends {}> = {
+  start: Props,
+  stop: Props,
+};
+
+export class MachineFlyweight<Props extends {}, M extends Machine<any, any, any, any>> {
+  private readonly dispatchers: {
+    [K in M["builders"]]?: DispatcherFlyweight<Props, ReturnType<M["builders"][K]>>;
+  } = {};
+
+  _emit<Name extends keyof StateEvents<Props>>(name: Name, data: StateEvents<Props>[Name]) {
+    for(const k in this.dispatchers) {
+      const key: keyof M["builders"] = k;
+      const child = this.dispatchers[key];
+      if(child) child.emit(name, data);
     }
   }
+
+  events<Name extends keyof M["builders"]>(name: Name) {
+    return upsert(this.dispatchers, name, () => {
+      return new DispatcherFlyweight();
+    });
+  }
+}
+
+export class DispatcherFlyweight<
+  Props extends {},
+  Dispatcher extends StateDispatcher<any, Props>
+> extends EventEmitter<StateEvents<Props>> {
+  readonly children: {
+    [K in keyof Dispatcher["children"]]?: MachineFlyweight<Props, Dispatcher["children"][K]>;
+  } = {};
+
+  override emit<Name extends keyof StateEvents<Props>>(name: Name, data: StateEvents<Props>[Name]) {
+    for(const key in this.children) {
+      const child = this.children[key];
+      if(child) child._emit(name, data);
+    }
+    super.emit(name, data);
+  }
+
+  child<Name extends keyof Dispatcher["children"]>(name: Name) {
+    return upsert(this.children, name, () => {
+      return new MachineFlyweight();
+    });
+  }
+}
+
+function upsert<Hash extends {}, Key extends keyof Hash>(
+  hash: Hash, key: Key, create: () => NonNullable<Hash[Key]>
+): NonNullable<Hash[Key]> {
+  let val = hash[key];
+  if(val) return val;
+
+  const createdVal = create();
+  hash[key] = createdVal;
+  return createdVal;
 }
 
 /*
@@ -88,12 +174,12 @@ export class StateDispatcher<M extends Messages, Props extends {}> {
  * =================================================================================================
  */
 
-type BuilderMap<Transitions extends string, M extends Messages> = {
+type BuilderMap<Transitions extends string, M extends BaseMessages> = {
   [K in Transitions]: StateFunction<any, Partial<M>, any>;
 };
 
 type MachineArgs<
-  M extends Messages,
+  M extends BaseMessages,
   B extends BuilderMap<any, M>,
   StaticProps extends {},
 > = {
@@ -103,12 +189,17 @@ type MachineArgs<
 };
 
 export class Machine<
-  M extends Messages,
+  M extends BaseMessages,
   B extends BuilderMap<any, M>,
   StaticProps extends {},
   DynamicProps extends {},
 > {
-  private readonly _builders: B;
+  readonly builders: B;
+
+  private readonly _dispatcherEventMap: {
+    [K in keyof B]?: DispatcherFlyweight<StaticProps & DynamicProps, ReturnType<B[K]>>
+  } = {};
+
   private _current: StateDispatcher<Partial<M>, StaticProps & DynamicProps> | null = null;
   private _currentName: keyof B;
   private _everRan = false;
@@ -120,25 +211,34 @@ export class Machine<
   constructor(args: MachineArgs<M, B, StaticProps>) {
     this._initial = this._currentName = args.initial;
     this._staticProps = args.staticProps;
-    this._builders = args.states;
+    this.builders = args.states;
+  }
+
+  running() {
+    return this._running;
   }
 
   goto(next: keyof B & string) {
     // Boilerplate safety
     this._assertRunning();
+    if(next === this._currentName) return;
     if(!this._props) throw new Error("Internal error: props are null");
 
-    this._current?.dispatch("stop", undefined);
+    // Manually dispatch and emit on the child! If you call your own dispatch on stop, it'll think
+    // the whole machine is stopping.
+    this._current?.dispatch("stop", this._dispatcherEventMap[this._currentName]);
+
     this._currentName = next;
     this._createAndStart(next, this._props);
   }
 
-  currentName() {
+  current() {
     return this._currentName;
   }
 
   start(dynamicProps: DynamicProps) {
     if(this._running) return;
+
     this._everRan = true;
     this._running = true;
 
@@ -154,24 +254,45 @@ export class Machine<
     // This check is necessary for stop idempotence! Otherwise subsequent calls will explode when
     // dispatch asserts that the machine is running.
     if(!this._running) return;
-    this.dispatch("stop", undefined);
+    this.dispatch("stop");
   }
 
-  dispatch<Name extends keyof M>(name: Name, data: M[Name]) {
+  dispatch<Name extends keyof M>(
+    name: Name,
+    ...data: Name extends "stop" ? [] : Params<M[Name]>
+  ) {
     // Boilerplate safety
     this._assertRunning();
     if(!this._current) throw new Error("Internal error: _current was never initialized");
 
-    // Special case handling for the stop event: we must track run state
-    if(name === "stop") this._running = false;
+    this._current.dispatch(name, this._dispatcherEventMap[this._currentName], ...data);
 
-    this._current.dispatch(name, data);
+    // Special case handling for the stop event: we must track run state
+    if(name === "stop") {
+      this._running = false;
+    }
+  }
+
+  events<Name extends keyof B>(name: Name) {
+    return upsert(this._dispatcherEventMap, name, () => {
+      return new DispatcherFlyweight();
+    });
+  }
+
+  currentEvents() {
+    return upsert(this._dispatcherEventMap, this._currentName, () => {
+      return new DispatcherFlyweight();
+    }) as DispatcherFlyweight<StaticProps & DynamicProps, any>;
   }
 
   private _createAndStart<N extends keyof B>(name: N, props: StaticProps & DynamicProps) {
-    const stateBuilder = this._builders[name];
+    const stateBuilder = this.builders[name];
     this._current = stateBuilder(this, props);
     this._currentName = name;
+    const dispatcherEvent = this._dispatcherEventMap[name];
+    if(dispatcherEvent) {
+      dispatcherEvent.emit("start", props);
+    }
   }
 
   private _assertRunning() {
@@ -196,12 +317,12 @@ type DefinedKeys<Some> = {
 }[keyof Some];
 type Rest<Full, Some extends Partial<Full>> = Omit<Full, DefinedKeys<Some>>;
 
-class MachineBuilder<M extends Messages, Props extends {}> {
+class MachineBuilder<M extends BaseMessages, Props extends {}> {
   build<B extends BuilderMap<any, M>, StaticProps extends Partial<Props>>(args: MachineArgs<M, B, StaticProps>) {
     return new Machine<M, B, StaticProps, Rest<Props, StaticProps>>(args);
   }
 }
 
-export function machine<M extends Messages, Props extends {}>(): MachineBuilder<M, Props> {
+export function machine<M extends BaseMessages, Props extends {}>(): MachineBuilder<M, Props> {
   return new MachineBuilder();
 }
