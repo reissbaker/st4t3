@@ -2,13 +2,13 @@ import { vi, expect, it, describe, beforeEach } from "vitest";
 import { TransitionTo, Machine } from "../index";
 import * as state from "../src/state-builder";
 
-type Messages = {
-  next(): void,
-  end(): void,
-};
+describe("State Machines", () => {
+  type Messages = {
+    next(): void,
+    end(): void,
+  };
 
-const Foo = state.transitionTo<"Bar" | "Final", Messages>((state) => {
-  return state.build({
+  const Foo = state.transitionTo<"Bar" | "Final", Messages>(state => state.build({
     messages: {
       next() {
         state.goto("Bar");
@@ -17,11 +17,9 @@ const Foo = state.transitionTo<"Bar" | "Final", Messages>((state) => {
         state.goto("Final");
       },
     },
-  });
-});
+  }));
 
-const Bar = state.transitionTo<"Foo" | "Final", Messages>((state) => {
-  return state.build({
+  const Bar = state.transitionTo<"Foo" | "Final", Messages>(state => state.build({
     messages: {
       next() {
         state.goto("Foo");
@@ -30,26 +28,22 @@ const Bar = state.transitionTo<"Foo" | "Final", Messages>((state) => {
         state.goto("Final");
       },
     },
-  });
-});
+  }));
 
-const Final = state.transitionTo<never>((state) => {
-  return state.build({
+  const Final = state.transitionTo<never>(state => state.build({
     messages: {},
-  });
-});
+  }));
 
-function machine() {
-  return state.machine<Messages, {}>().build({
-    initial: "Foo",
-    states: {
-      Foo, Bar, Final
-    },
-    staticProps: {},
-  });
-}
+  function machine() {
+    return state.machine<Messages, {}>().build({
+      initial: "Foo",
+      states: {
+        Foo, Bar, Final
+      },
+      staticProps: {},
+    });
+  }
 
-describe("State Machines", () => {
   type MachineType = ReturnType<typeof machine>;
   type Should = {
     machine: MachineType,
@@ -242,6 +236,59 @@ describe("State Machines", () => {
   });
 });
 
+describe("State machines with messages that take arguments", () => {
+  type Messages = {
+    unidle(): void,
+    update(delta: number, currentMs: number): void,
+  };
+
+  const Still = state.transitionTo<'Idle', Pick<Messages, 'update'>>((state) => {
+    let elapsed = 0;
+
+    return state.build({
+      messages: {
+        update(delta, currentMs) {
+          elapsed += delta;
+          if(elapsed > 1000 && currentMs > 1000) state.goto('Idle');
+        },
+      },
+    });
+  });
+
+  const Idle = state.transitionTo<'Still', Pick<Messages, "unidle">>(state => state.build({
+    messages: {
+      unidle() {
+        state.goto('Still');
+      }
+    }
+  }));
+
+  function machine() {
+    return state.machine<Messages, {}>().build({
+      initial: 'Still',
+      states: { Still, Idle },
+      staticProps: {},
+    });
+  }
+
+  type MachineType = ReturnType<typeof machine>;
+  type Should = {
+    machine: MachineType,
+  };
+
+  beforeEach<Should>(ctx => {
+    ctx.machine = machine();
+  });
+
+  it<Should>("pass along the arguments", ({ machine }) => {
+    machine.start({});
+    expect(machine.current()).toStrictEqual("Still");
+    machine.dispatch("update", 600, 600);
+    expect(machine.current()).toStrictEqual("Still");
+    machine.dispatch("update", 600, 1200);
+    expect(machine.current()).toStrictEqual("Idle");
+  });
+});
 
 describe("State machines with props", () => {
   type Messages = {
@@ -340,61 +387,69 @@ describe("State machines with props", () => {
 
 
 describe("Child states", () => {
-  class ParentJump extends TransitionTo<'Land'> {
-    readonly children = {
-      jumpState: new Machine({
-        initial: "FirstJump",
+  type Messages = {
+    jump(): void,
+    land(): void,
+  };
+  const FirstJump = state.transitionTo<'DoubleJump', Pick<Messages, 'jump'>>(state => state.build({
+    messages: {
+      jump() {
+        state.goto('DoubleJump');
+      }
+    },
+  }));
+
+  const DoubleJump = state.transitionTo<never>(state => state.build({
+    messages: {},
+  }));
+
+  const ParentJump = state.transitionTo<'Land', Messages>(s => s.build({
+    children: {
+      jumpState: state.machine<Messages, {}>().build({
+        initial: 'FirstJump',
         states: { FirstJump, DoubleJump },
+        staticProps: {},
       }),
-    };
+    },
+    messages: {
+      jump() {},
+      land() {
+        s.goto('Land');
+      },
+    },
+  }));
 
-    jump() {
-      this.children.jumpState.current().jump();
-    }
+  const JustLanded = state.transitionTo<'Still'>(state => state.build({
+    messages: {},
+  }));
 
-    land() {
-      this.transitionTo("Land");
-    }
-  }
+  const Still = state.transitionTo<never>(state => state.build({
+    messages: {},
+  }));
 
-  class Land extends TransitionTo<'ParentJump'> {
-    readonly children = {
-      landState: new Machine({
-        initial: "JustLanded",
-        states: {
-          JustLanded, Still
-        },
+  const Land = state.transitionTo<'ParentJump', Messages>(s => s.build({
+    children: {
+      landState: state.machine<{}, {}>().build({
+        initial: 'JustLanded',
+        states: { JustLanded, Still },
+        staticProps: {},
       }),
-    };
-
-    jump() {
-      this.transitionTo("ParentJump");
-    }
-    land() {}
-  }
-
-  class JustLanded extends TransitionTo<'Still'> {
-  }
-  class Still extends TransitionTo<never> {
-  }
-
-  class FirstJump extends TransitionTo<'DoubleJump', { parent: ParentJump }> {
-    jump() {
-      this.transitionTo("DoubleJump");
-    }
-  }
-
-  class DoubleJump extends TransitionTo<never> {
-    // No-op
-    jump() {}
-  }
+    },
+    messages: {
+      jump() {
+        s.goto('ParentJump');
+      },
+      land() {},
+    },
+  }));
 
   function jumpMachine() {
-    return new Machine({
+    return state.machine<Messages, {}>().build({
       initial: "Land",
       states: {
         ParentJump, Land,
       },
+      staticProps: {},
     });
   }
 
@@ -421,7 +476,7 @@ describe("Child states", () => {
                  .on('start', vi.fn());
     machine.start({});
     expect(mock).toHaveBeenCalledTimes(0);
-    machine.current().jump();
+    machine.dispatch('jump');
     expect(mock).toHaveBeenCalledOnce();
   });
 
@@ -437,35 +492,45 @@ describe("Child states", () => {
   });
 
   it<Should>("Call start even on deeply nested machines", () => {
-    class MostOuter extends TransitionTo<never> {
-      readonly children = {
-        child: new Machine({
-          initial: "Outer",
-          states: { Outer },
-        }),
-      };
-    }
-    class Outer extends TransitionTo<never> {
-      readonly children = {
-          child: new Machine({
-          initial: "Inner",
-          states: { Inner },
-        })
-      };
-    }
-    class Inner extends TransitionTo<never> {
-      readonly children = {
-        child: new Machine({
+    const MostInner = state.transitionTo<never>(s => s.build({ messages: {} }));
+
+    const Inner = state.transitionTo<never>(s => s.build({
+      children: {
+        child: state.machine<{}, {}>().build({
           initial: "MostInner",
           states: { MostInner },
+          staticProps: {},
         }),
-      };
-    }
-    class MostInner extends TransitionTo<never> {}
+      },
+      messages: {},
+    }));
 
-    const machine = new Machine({
+    const Outer = state.transitionTo<never>(s => s.build({
+      children: {
+        child: state.machine<{}, {}>().build({
+          initial: "Inner",
+          states: { Inner },
+          staticProps: {},
+        }),
+      },
+      messages: {},
+    }));
+
+    const MostOuter = state.transitionTo<never>(s => s.build({
+      children: {
+        child: state.machine<{}, {}>().build({
+          initial: "Outer",
+          states: { Outer },
+          staticProps: {},
+        }),
+      },
+      messages: {},
+    }));
+
+    const machine = state.machine<{}, {}>().build({
       initial: "MostOuter",
       states: { MostOuter },
+      staticProps: {},
     });
 
     const mock = machine

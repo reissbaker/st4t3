@@ -18,16 +18,6 @@ export class StateBuilder<Next extends string, M extends BaseMessages, Props ext
   ) {}
 
   build(args: BuildArgs<M, Props>) {
-    // Hydrate the child machines
-    // TODO: Once you add the event system, you'll probably want to move this out and have machines
-    // hydrate children, rather than doing it in build() where events haven't been registered yet
-    if(args.children) {
-      for(const key in args.children) {
-        const child = args.children[key];
-        child.start(this.props);
-      }
-    }
-
     return new StateDispatcher(args, this.props);
   }
 
@@ -129,9 +119,7 @@ export class MachineFlyweight<Props extends {}, M extends Machine<any, any, any,
   }
 
   events<Name extends keyof M["builders"]>(name: Name) {
-    return upsert(this.dispatchers, name, () => {
-      return new DispatcherFlyweight();
-    });
+    return upsert(this.dispatchers, name, () => new DispatcherFlyweight());
   }
 }
 
@@ -152,9 +140,7 @@ export class DispatcherFlyweight<
   }
 
   child<Name extends keyof Dispatcher["children"]>(name: Name) {
-    return upsert(this.children, name, () => {
-      return new MachineFlyweight();
-    });
+    return upsert(this.children, name, () => new MachineFlyweight());
   }
 }
 
@@ -268,9 +254,7 @@ export class Machine<
     this._current.dispatch(name, this._dispatcherEventMap[this._currentName], ...data);
 
     // Special case handling for the stop event: we must track run state
-    if(name === "stop") {
-      this._running = false;
-    }
+    if(name === "stop") this._running = false;
   }
 
   events<Name extends keyof B>(name: Name) {
@@ -280,19 +264,24 @@ export class Machine<
   }
 
   currentEvents() {
-    return upsert(this._dispatcherEventMap, this._currentName, () => {
-      return new DispatcherFlyweight();
-    }) as DispatcherFlyweight<StaticProps & DynamicProps, any>;
+    return upsert(this._dispatcherEventMap, this._currentName, () => new DispatcherFlyweight());
   }
 
   private _createAndStart<N extends keyof B>(name: N, props: StaticProps & DynamicProps) {
     const stateBuilder = this.builders[name];
     this._current = stateBuilder(this, props);
     this._currentName = name;
-    const dispatcherEvent = this._dispatcherEventMap[name];
-    if(dispatcherEvent) {
-      dispatcherEvent.emit("start", props);
+
+    // Hydrate child machines
+    if(this._current.hasChildren) {
+      for(const key in this._current.children) {
+        const child = this._current.children[key];
+        child.start(props);
+      }
     }
+
+    const dispatcherEvent = this._dispatcherEventMap[name];
+    if(dispatcherEvent) dispatcherEvent.emit("start", props);
   }
 
   private _assertRunning() {
