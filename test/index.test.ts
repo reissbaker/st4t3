@@ -235,11 +235,11 @@ describe("State Machines", () => {
 
 describe("State machines with messages that take arguments", () => {
   type Messages = {
-    unidle(): void,
+    wake(): void,
     update(delta: number, currentMs: number): void,
   };
 
-  const Still = create.transition<'Idle', Pick<Messages, 'update'>>().build((state) => {
+  const Stopped = create.transition<'Idle', Pick<Messages, 'update'>>().build((state) => {
     let elapsed = 0;
 
     return state.build({
@@ -252,18 +252,18 @@ describe("State machines with messages that take arguments", () => {
     });
   });
 
-  const Idle = create.transition<'Still', Pick<Messages, "unidle">>().build(state => state.build({
+  const Idle = create.transition<'Stopped', Pick<Messages, "wake">>().build(state => state.build({
     messages: {
-      unidle() {
-        state.goto('Still');
+      wake() {
+        state.goto('Stopped');
       }
     }
   }));
 
   function machine() {
     return create.machine<Messages>().build({
-      initial: 'Still',
-      states: { Still, Idle },
+      initial: 'Stopped',
+      states: { Stopped, Idle },
     });
   }
 
