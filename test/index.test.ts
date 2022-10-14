@@ -30,7 +30,7 @@ describe("State Machines", () => {
     },
   }));
 
-  const Final = create.transition<never>().build(state => state.build());
+  const Final = create.transition().build(state => state.build());
 
   function machine() {
     return create.machine<Messages>().build({
@@ -401,7 +401,7 @@ describe("Child states", () => {
     },
   }));
 
-  const DoubleJump = create.transition<never>().build(state => state.build());
+  const DoubleJump = create.transition().build(state => state.build());
 
   const ParentJump = create.transition<'Land', Messages>().build(s => s.build({
     children: {
@@ -419,7 +419,7 @@ describe("Child states", () => {
   }));
 
   const JustLanded = create.transition<'Still'>().build(state => state.build());
-  const Still = create.transition<never>().build(state => state.build());
+  const Still = create.transition().build(state => state.build());
 
   const Land = create.transition<'ParentJump', Messages>().build(s => s.build({
     children: {
@@ -488,9 +488,9 @@ describe("Child states", () => {
   });
 
   it<Should>("Call start even on deeply nested machines", () => {
-    const MostInner = create.transition<never>().build(s => s.build());
+    const MostInner = create.transition().build(s => s.build());
 
-    const Inner = create.transition<never>().build(s => s.build({
+    const Inner = create.transition().build(s => s.build({
       children: {
         child: create.machine().build({
           initial: "MostInner",
@@ -500,7 +500,7 @@ describe("Child states", () => {
       messages: {},
     }));
 
-    const Outer = create.transition<never>().build(s => s.build({
+    const Outer = create.transition().build(s => s.build({
       children: {
         child: create.machine().build({
           initial: "Inner",
@@ -510,7 +510,7 @@ describe("Child states", () => {
       messages: {},
     }));
 
-    const MostOuter = create.transition<never>().build(s => s.build({
+    const MostOuter = create.transition().build(s => s.build({
       children: {
         child: create.machine().build({
           initial: "Outer",

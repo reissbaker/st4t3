@@ -52,7 +52,7 @@ class DispatchBuilder<
   }
 }
 export function transition<
-  Next extends string,
+  Next extends string = never,
   M extends BaseMessages = {},
   Props extends {} = {}
 >(): DispatchBuilder<Next, M, Props> {
