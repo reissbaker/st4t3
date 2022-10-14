@@ -17,8 +17,11 @@ export class StateBuilder<Next extends string, M extends BaseMessages, Props ext
     readonly props: Props
   ) {}
 
-  build(args: BuildArgs<M, Props>) {
-    return new StateDispatcher(args, this.props);
+  build<C extends Children<M, Props>>(args: BuildArgs<M, Props, C>): StateDispatcher<M, Props, C>;
+  build(): StateDispatcher<M, Props, {}>;
+  build<C extends Children<M, Props>>(args?: BuildArgs<M, Props, C>) {
+    if(args) return new StateDispatcher(args, this.props);
+    return new StateDispatcher({ messages: {} }, this.props);
   }
 
   goto(next: Next & string) {
@@ -26,8 +29,8 @@ export class StateBuilder<Next extends string, M extends BaseMessages, Props ext
   }
 }
 
-type BuildArgs<M extends BaseMessages, Props extends {}> = {
-  children?: Children<M, Props>,
+type BuildArgs<M extends BaseMessages, Props extends {}, C extends Children<M, Props>> = {
+  children?: C,
   messages: M,
 };
 
@@ -35,37 +38,49 @@ type Children<M extends BaseMessages, Props extends {}> = {
   [key: string]: Machine<Partial<M>, any, any, Partial<Props>>,
 };
 
+class DispatchBuilder<
+  Next extends string,
+  M extends BaseMessages = {},
+  Props extends {} = {}
+> {
+  build<Dispatcher extends StateDispatcher<M, Props, any>>(
+    buildFn: (builder: StateBuilder<Next, M, Props>) => Dispatcher
+  ): StateFunction<Next, M, Props, Dispatcher> {
+    return (machine, props) => {
+      return buildFn(new StateBuilder<Next, M, Props>(machine, props));
+    };
+  }
+}
 export function transitionTo<
   Next extends string,
   M extends BaseMessages = {},
   Props extends {} = {}
->(
-  buildFn: (builder: StateBuilder<Next, M, Props>) => StateDispatcher<M, Props>
-): StateFunction<Next, M, Props> {
-  return (machine, props) => {
-    return buildFn(new StateBuilder<Next, M, Props>(machine, props));
-  };
+>(): DispatchBuilder<Next, M, Props> {
+  return new DispatchBuilder();
 }
 
 export type StateFunction<
-  Next extends string, M extends BaseMessages, Props extends {}
+  Next extends string,
+  M extends BaseMessages,
+  Props extends {},
+  Dispatcher extends StateDispatcher<M, Props, any>
 > = (
   machine: Machine<M, BuilderMap<Next, any>, any, any>,
   props: Props
-) => StateDispatcher<M, Props>;
+) => Dispatcher;
 
 /*
  * Message dispatching for states
  * =================================================================================================
  */
 
-export class StateDispatcher<M extends BaseMessages, Props extends {}> {
+export class StateDispatcher<M extends BaseMessages, P extends {}, C extends Children<M, P>> {
   readonly hasChildren: boolean; // dumb micro optimization for cpu branch predictor
-  readonly children: Children<M, Props>;
+  readonly children: Children<M, P>;
 
   constructor(
-    private readonly args: BuildArgs<M, Props>,
-    private readonly props: Props
+    private readonly args: BuildArgs<M, P, C>,
+    private readonly props: P
   ) {
     this.children = args.children || {};
     this.hasChildren = !!args.children;
@@ -73,7 +88,7 @@ export class StateDispatcher<M extends BaseMessages, Props extends {}> {
 
   dispatch<Name extends keyof M>(
     name: Name,
-    emitter: EventEmitter<StateEvents<Props>> | undefined,
+    emitter: EventEmitter<StateEvents<P>> | undefined,
     ...data: Name extends "stop" ? [] : Params<M[Name]>
   ) {
     if(this.hasChildren) {
@@ -118,17 +133,18 @@ export class MachineFlyweight<Props extends {}, M extends Machine<any, any, any,
     }
   }
 
-  events<Name extends keyof M["builders"]>(name: Name) {
+  events<Name extends keyof M["builders"]>(name: Name): DispatcherFlyweight<Props, ReturnType<M["builders"][Name]>> {
     return upsert(this.dispatchers, name, () => new DispatcherFlyweight());
   }
 }
 
+type GetChildren<T> = T extends StateDispatcher<any, any, infer C> ? C : never;
 export class DispatcherFlyweight<
   Props extends {},
-  Dispatcher extends StateDispatcher<any, Props>
+  Dispatcher extends StateDispatcher<any, Props, any>
 > extends EventEmitter<StateEvents<Props>> {
   readonly children: {
-    [K in keyof Dispatcher["children"]]?: MachineFlyweight<Props, Dispatcher["children"][K]>;
+    [K in keyof GetChildren<Dispatcher>]?: MachineFlyweight<Props, GetChildren<Dispatcher>[K]>;
   } = {};
 
   override emit<Name extends keyof StateEvents<Props>>(name: Name, data: StateEvents<Props>[Name]) {
@@ -139,7 +155,7 @@ export class DispatcherFlyweight<
     super.emit(name, data);
   }
 
-  child<Name extends keyof Dispatcher["children"]>(name: Name) {
+  child<Name extends keyof GetChildren<Dispatcher>>(name: Name) {
     return upsert(this.children, name, () => new MachineFlyweight());
   }
 }
@@ -161,7 +177,7 @@ function upsert<Hash extends {}, Key extends keyof Hash>(
  */
 
 type BuilderMap<Transitions extends string, M extends BaseMessages> = {
-  [K in Transitions]: StateFunction<any, Partial<M>, any>;
+  [K in Transitions]: StateFunction<any, Partial<M>, any, any>;
 };
 
 type MachineArgs<
@@ -186,7 +202,7 @@ export class Machine<
     [K in keyof B]?: DispatcherFlyweight<StaticProps & DynamicProps, ReturnType<B[K]>>
   } = {};
 
-  private _current: StateDispatcher<Partial<M>, StaticProps & DynamicProps> | null = null;
+  private _current: StateDispatcher<Partial<M>, StaticProps & DynamicProps, any> | null = null;
   private _currentName: keyof B;
   private _everRan = false;
   private _running = false;
@@ -257,7 +273,7 @@ export class Machine<
     if(name === "stop") this._running = false;
   }
 
-  events<Name extends keyof B>(name: Name) {
+  events<Name extends keyof B>(name: Name): DispatcherFlyweight<StaticProps & DynamicProps, ReturnType<B[Name]>> {
     return upsert(this._dispatcherEventMap, name, () => {
       return new DispatcherFlyweight();
     });
@@ -269,13 +285,14 @@ export class Machine<
 
   private _createAndStart<N extends keyof B>(name: N, props: StaticProps & DynamicProps) {
     const stateBuilder = this.builders[name];
-    this._current = stateBuilder(this, props);
+    const current = stateBuilder(this, props);
+    this._current = current;
     this._currentName = name;
 
     // Hydrate child machines
-    if(this._current.hasChildren) {
-      for(const key in this._current.children) {
-        const child = this._current.children[key];
+    if(current.hasChildren) {
+      for(const key in current.children) {
+        const child = current.children[key];
         child.start(props);
       }
     }
