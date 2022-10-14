@@ -428,6 +428,16 @@ describe("State machines with static props", () => {
     machine.start({ count: 1 });
     expect(spy).toHaveBeenCalledOnce();
   });
+
+  it<Should>("keep passing the static props through state transitions", ({ machine }) => {
+    const spy = vi.fn((props: Props) => {
+      expect(props).toStrictEqual({ msg: "hi", count: 1 });
+    });
+    machine.events('Final').on("start", spy);
+    machine.start({ count: 1 });
+    machine.dispatch("next");
+    expect(spy).toHaveBeenCalledOnce();
+  });
 });
 
 describe("Child states", () => {
