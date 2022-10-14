@@ -1,6 +1,6 @@
 import { vi, expect, it, describe, beforeEach } from "vitest";
 import { TransitionTo, Machine } from "../index";
-import * as state from "../src/state-builder";
+import * as create from "../src/state-builder";
 
 describe("State Machines", () => {
   type Messages = {
@@ -8,7 +8,7 @@ describe("State Machines", () => {
     end(): void,
   };
 
-  const Foo = state.transitionTo<"Bar" | "Final", Messages>().build(state => state.build({
+  const Foo = create.transition<"Bar" | "Final", Messages>().build(state => state.build({
     messages: {
       next() {
         state.goto("Bar");
@@ -19,7 +19,7 @@ describe("State Machines", () => {
     },
   }));
 
-  const Bar = state.transitionTo<"Foo" | "Final", Messages>().build(state => state.build({
+  const Bar = create.transition<"Foo" | "Final", Messages>().build(state => state.build({
     messages: {
       next() {
         state.goto("Foo");
@@ -30,10 +30,10 @@ describe("State Machines", () => {
     },
   }));
 
-  const Final = state.transitionTo<never>().build(state => state.build());
+  const Final = create.transition<never>().build(state => state.build());
 
   function machine() {
-    return state.machine<Messages>().build({
+    return create.machine<Messages>().build({
       initial: "Foo",
       states: {
         Foo, Bar, Final
@@ -239,7 +239,7 @@ describe("State machines with messages that take arguments", () => {
     update(delta: number, currentMs: number): void,
   };
 
-  const Still = state.transitionTo<'Idle', Pick<Messages, 'update'>>().build((state) => {
+  const Still = create.transition<'Idle', Pick<Messages, 'update'>>().build((state) => {
     let elapsed = 0;
 
     return state.build({
@@ -252,7 +252,7 @@ describe("State machines with messages that take arguments", () => {
     });
   });
 
-  const Idle = state.transitionTo<'Still', Pick<Messages, "unidle">>().build(state => state.build({
+  const Idle = create.transition<'Still', Pick<Messages, "unidle">>().build(state => state.build({
     messages: {
       unidle() {
         state.goto('Still');
@@ -261,7 +261,7 @@ describe("State machines with messages that take arguments", () => {
   }));
 
   function machine() {
-    return state.machine<Messages>().build({
+    return create.machine<Messages>().build({
       initial: 'Still',
       states: { Still, Idle },
     });
@@ -295,7 +295,11 @@ describe("State machines with props", () => {
     allowDoubleJumps: boolean,
     bounceOnLand: boolean,
   };
-  const Jump = state.transitionTo<'Land', Messages, Pick<Props, 'allowDoubleJumps'>>().build((state) => {
+  const Jump = create.transition<
+    'Land',
+    Messages,
+    Pick<Props, 'allowDoubleJumps'>
+  >().build((state) => {
     return state.build({
       messages: {
         jump() {},
@@ -306,7 +310,7 @@ describe("State machines with props", () => {
     });
   });
 
-  const Land = state.transitionTo<'Jump', Messages, Pick<Props, 'bounceOnLand'>>().build((state) => {
+  const Land = create.transition<'Jump', Messages, Pick<Props, 'bounceOnLand'>>().build((state) => {
     return state.build({
       messages: {
         land() {},
@@ -322,7 +326,7 @@ describe("State machines with props", () => {
     bounceOnLand: true,
   };
   function jumpMachine() {
-    return state.machine<Messages, Props>().build({
+    return create.machine<Messages, Props>().build({
       initial: "Land",
       states: {
         Jump, Land
@@ -386,7 +390,10 @@ describe("Child states", () => {
     jump(): void,
     land(): void,
   };
-  const FirstJump = state.transitionTo<'DoubleJump', Pick<Messages, 'jump'>>().build(state => state.build({
+  const FirstJump = create.transition<
+    'DoubleJump',
+    Pick<Messages, 'jump'>
+  >().build(state => state.build({
     messages: {
       jump() {
         state.goto('DoubleJump');
@@ -394,11 +401,11 @@ describe("Child states", () => {
     },
   }));
 
-  const DoubleJump = state.transitionTo<never>().build(state => state.build());
+  const DoubleJump = create.transition<never>().build(state => state.build());
 
-  const ParentJump = state.transitionTo<'Land', Messages>().build(s => s.build({
+  const ParentJump = create.transition<'Land', Messages>().build(s => s.build({
     children: {
-      jumpState: state.machine<Messages>().build({
+      jumpState: create.machine<Messages>().build({
         initial: 'FirstJump',
         states: { FirstJump, DoubleJump },
       }),
@@ -411,12 +418,12 @@ describe("Child states", () => {
     },
   }));
 
-  const JustLanded = state.transitionTo<'Still'>().build(state => state.build());
-  const Still = state.transitionTo<never>().build(state => state.build());
+  const JustLanded = create.transition<'Still'>().build(state => state.build());
+  const Still = create.transition<never>().build(state => state.build());
 
-  const Land = state.transitionTo<'ParentJump', Messages>().build(s => s.build({
+  const Land = create.transition<'ParentJump', Messages>().build(s => s.build({
     children: {
-      landState: state.machine().build({
+      landState: create.machine().build({
         initial: 'JustLanded',
         states: { JustLanded, Still },
       }),
@@ -430,7 +437,7 @@ describe("Child states", () => {
   }));
 
   function jumpMachine() {
-    return state.machine<Messages>().build({
+    return create.machine<Messages>().build({
       initial: "Land",
       states: {
         ParentJump, Land,
@@ -448,7 +455,11 @@ describe("Child states", () => {
   });
 
   it<Should>("Call start on child machines when they're started", ({ machine }) => {
-    const mock = machine.events('Land').child('landState').events('JustLanded').on("start", vi.fn());
+    const mock = machine
+                 .events('Land')
+                 .child('landState')
+                 .events('JustLanded')
+                 .on("start", vi.fn());
     machine.start({});
     expect(mock).toHaveBeenCalledOnce();
   });
@@ -477,11 +488,11 @@ describe("Child states", () => {
   });
 
   it<Should>("Call start even on deeply nested machines", () => {
-    const MostInner = state.transitionTo<never>().build(s => s.build());
+    const MostInner = create.transition<never>().build(s => s.build());
 
-    const Inner = state.transitionTo<never>().build(s => s.build({
+    const Inner = create.transition<never>().build(s => s.build({
       children: {
-        child: state.machine().build({
+        child: create.machine().build({
           initial: "MostInner",
           states: { MostInner },
         }),
@@ -489,9 +500,9 @@ describe("Child states", () => {
       messages: {},
     }));
 
-    const Outer = state.transitionTo<never>().build(s => s.build({
+    const Outer = create.transition<never>().build(s => s.build({
       children: {
-        child: state.machine().build({
+        child: create.machine().build({
           initial: "Inner",
           states: { Inner },
         }),
@@ -499,9 +510,9 @@ describe("Child states", () => {
       messages: {},
     }));
 
-    const MostOuter = state.transitionTo<never>().build(s => s.build({
+    const MostOuter = create.transition<never>().build(s => s.build({
       children: {
-        child: state.machine().build({
+        child: create.machine().build({
           initial: "Outer",
           states: { Outer },
         }),
@@ -509,7 +520,7 @@ describe("Child states", () => {
       messages: {},
     }));
 
-    const machine = state.machine().build({
+    const machine = create.machine().build({
       initial: "MostOuter",
       states: { MostOuter },
     });

@@ -51,7 +51,7 @@ class DispatchBuilder<
     };
   }
 }
-export function transitionTo<
+export function transition<
   Next extends string,
   M extends BaseMessages = {},
   Props extends {} = {}
