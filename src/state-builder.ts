@@ -187,7 +187,7 @@ type MachineArgs<
 > = {
   initial: keyof B,
   states: B,
-  staticProps: StaticProps,
+  props: StaticProps,
 };
 
 export class Machine<
@@ -212,7 +212,7 @@ export class Machine<
 
   constructor(args: MachineArgs<M, B, StaticProps>) {
     this._initial = this._currentName = args.initial;
-    this._staticProps = args.staticProps;
+    this._staticProps = args.props;
     this.builders = args.states;
   }
 
@@ -337,7 +337,7 @@ class MachineBuilder<M extends BaseMessages, Props extends {}> {
 
     return new Machine({
       ...args,
-      staticProps: {},
+      props: {},
     });
   }
 }
@@ -345,7 +345,7 @@ class MachineBuilder<M extends BaseMessages, Props extends {}> {
 function hasStaticProps<N extends NoStaticPropsArgs<any>, M extends MachineArgs<any, any, any>>(
   args: N | M
 ): args is M {
-  return (args as MachineArgs<any, any, any>).staticProps !== undefined;
+  return (args as MachineArgs<any, any, any>).props !== undefined;
 }
 
 export function machine<M extends BaseMessages = {}, Props extends {} = {}>(): MachineBuilder<M, Props> {

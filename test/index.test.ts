@@ -384,6 +384,51 @@ describe("State machines with props", () => {
   });
 });
 
+describe("State machines with static props", () => {
+  type Messages = {
+    next(): void,
+  };
+  type Props = {
+    msg: string,
+    count: number,
+  };
+  const Initial = create.transition<"Final", Messages, Props>().build(state => state.build({
+    messages: {
+      next() {
+        state.goto("Final");
+      }
+    }
+  }));
+  const Final = create.transition<never, {}, Props>().build(state => state.build());
+
+  function machine() {
+    return create.machine<Messages, Props>().build({
+      initial: "Initial",
+      states: { Initial, Final },
+      props: {
+        msg: "hi",
+      },
+    });
+  }
+
+  type MachineType = ReturnType<typeof machine>;
+  type Should = {
+    machine: MachineType,
+  };
+
+  beforeEach<Should>((ctx) => {
+    ctx.machine = machine();
+  });
+
+  it<Should>("pass the static props through as if they were included in start()", ({ machine }) => {
+    const spy = vi.fn((props: Props) => {
+      expect(props).toStrictEqual({ msg: "hi", count: 1 });
+    });
+    machine.events('Initial').on("start", spy);
+    machine.start({ count: 1 });
+    expect(spy).toHaveBeenCalledOnce();
+  });
+});
 
 describe("Child states", () => {
   type Messages = {
