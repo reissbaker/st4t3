@@ -597,49 +597,61 @@ describe("Child states", () => {
   it<Should>("pass a reference to the parent state in the props that can be called", () => {
     // First let's define the outer states
     type Props = { hello: string };
-    class First extends TransitionTo<'Second', Props> {
-      readonly children = {
-        inner: new Machine({
-          initial: "Inner",
-          states: { Inner },
-        }),
-      };
-
-      next() {
-        this.children.inner.current().next();
-      }
+    type Messages = {
+      next(): void;
+    };
+    type HiddenParentMessages = {
+      forwardSecond(): void;
+    };
+    type TopLevelMessages = {
+      second(): void;
     }
 
-    class Second extends TransitionTo<never> {
-      next() {
-      }
-    }
+    const MostInner = create.transition<never, Messages, Props, HiddenParentMessages>().build(
+      (state, parent) => state.build({
+        messages: {
+          next() {
+            parent.dispatch("forwardSecond");
+          }
+        },
+      })
+    );
+    const Inner = create.transition<never, Messages & HiddenParentMessages, Props, TopLevelMessages>().build(
+      (state, parent) => state.build({
+        children: {
+          mostInner: create.machine<Messages, Props>().build({
+            initial: "MostInner",
+            states: { MostInner },
+          }),
+        },
+        messages: {
+          next() {},
+          forwardSecond() {
+            parent.dispatch("second");
+          }
+        },
+      })
+    );
+    const First = create.transition<"Second", Messages & TopLevelMessages, Props>().build(
+      state => state.build({
+        children: {
+          inner: create.machine<Messages & HiddenParentMessages, Props>().build({
+            initial: "Inner",
+            states: { Inner },
+          }),
+        },
+        messages: {
+          next() {},
+          second() {
+            state.goto("Second");
+          }
+        }
+      })
+    );
 
-    // Here's a nested state with a parent of First
-    class Inner extends TransitionTo<never, Props & { parent: First }> {
-      readonly children = {
-        mostInner: new Machine({
-          initial: "MostInner",
-          states: { MostInner },
-        }),
-      }
-      next() {
-        this.children.mostInner.current().next();
-      }
-      transitionParent() {
-        this.props.parent.transitionTo("Second");
-      }
-    }
+    const Second = create.transition().build(state => state.build());
 
-    // Now let's define an even more-deeply nested state with a parent of Inner. This should
-    // typecheck, because `parent` is the only key allowed to differ in the props
-    class MostInner extends TransitionTo<never, Props & { parent: Inner }> {
-      next() {
-        this.props.parent.transitionParent();
-      }
-    }
-
-    const machine = new Machine({
+    const machine = create.machine<Messages & TopLevelMessages, Props>().build({
       initial: "First",
       states: { First, Second },
     });
@@ -647,7 +659,7 @@ describe("Child states", () => {
     const mock = machine.events("Second").on("start", vi.fn());
     expect(mock).toHaveBeenCalledTimes(0);
     machine.start({ hello: "world" });
-    machine.current().next();
+    machine.dispatch("next");
     expect(mock).toHaveBeenCalledOnce();
   });
 });

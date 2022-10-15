@@ -11,7 +11,11 @@ type BaseMessages = {
  * =================================================================================================
  */
 
-export class StateBuilder<Next extends string, M extends BaseMessages, Props extends {}> {
+export class StateBuilder<
+  Next extends string,
+  M extends BaseMessages,
+  Props extends {},
+> {
   constructor(
     private readonly machine: Machine<Partial<M>, BuilderMap<Next, any>, any, any>,
     readonly props: Props
@@ -41,33 +45,55 @@ type Children<M extends BaseMessages, Props extends {}> = {
 class DispatchBuilder<
   Next extends string,
   M extends BaseMessages = {},
-  Props extends {} = {}
+  Props extends {} = {},
+  PM extends BaseMessages | null = null
 > {
   build<Dispatcher extends StateDispatcher<M, Props, any>>(
-    buildFn: (builder: StateBuilder<Next, M, Props>) => Dispatcher
-  ): StateFunction<Next, M, Props, Dispatcher> {
-    return (machine, props) => {
-      return buildFn(new StateBuilder<Next, M, Props>(machine, props));
+    buildFn: (builder: StateBuilder<Next, M, Props>, parent: Parent<NonNullable<PM>, any>) => Dispatcher
+  ): StateFunction<Next, M, Props, Dispatcher, PM> {
+    return (machine, props, parent) => {
+      return buildFn(new StateBuilder<Next, M, Props>(machine, props), parent);
     };
   }
 }
 export function transition<
   Next extends string = never,
   M extends BaseMessages = {},
-  Props extends {} = {}
->(): DispatchBuilder<Next, M, Props> {
+  Props extends {} = {},
+  Parent extends BaseMessages | null = null,
+>(): DispatchBuilder<Next, M, Props, Parent> {
   return new DispatchBuilder();
 }
 
-export type StateFunction<
+type StateFunction<
   Next extends string,
   M extends BaseMessages,
   Props extends {},
-  Dispatcher extends StateDispatcher<M, Props, any>
+  Dispatcher extends StateDispatcher<M, Props, any>,
+  PM extends BaseMessages | null,
 > = (
   machine: Machine<M, BuilderMap<Next, any>, any, any>,
-  props: Props
+  props: Props,
+  parent: Parent<NonNullable<PM>, any>
 ) => Dispatcher;
+
+class Parent<
+  M extends BaseMessages,
+  Dispatcher extends StateDispatcher<M, any, any>
+> {
+  constructor(private readonly dispatcher: Dispatcher) {}
+
+  // Allows dispatching any message except the system-reserved "stop" message
+  dispatch<Name extends Exclude<keyof M, "stop">>(
+    name: Name,
+    ...data: Name extends "stop" ? never : Params<M[Name]>
+  ) {
+    this.dispatcher.dispatchExceptStop(
+      name,
+      ...data
+    );
+  }
+}
 
 /*
  * Message dispatching for states
@@ -105,6 +131,13 @@ export class StateDispatcher<M extends BaseMessages, P extends {}, C extends Chi
     }
 
     if(emitter && name === "stop") emitter.emit("stop", this.props);
+  }
+
+  dispatchExceptStop<Name extends Exclude<keyof M, "stop">>(
+    name: Name,
+    ...data: Name extends "stop" ? [] : Params<M[Name]>
+  ) {
+    this.dispatch(name, undefined, ...data);
   }
 }
 
@@ -177,7 +210,7 @@ function upsert<Hash extends {}, Key extends keyof Hash>(
  */
 
 type BuilderMap<Transitions extends string, M extends BaseMessages> = {
-  [K in Transitions]: StateFunction<any, Partial<M>, any, any>;
+  [K in Transitions]: StateFunction<any, Partial<M>, any, any, any>;
 };
 
 type MachineArgs<
@@ -209,6 +242,8 @@ export class Machine<
   private _staticProps: StaticProps;
   private _props: (DynamicProps & StaticProps) | null = null;
   private readonly _initial: keyof B;
+
+  protected _parent: Parent<any, any> | null = null;
 
   constructor(args: MachineArgs<M, B, StaticProps>) {
     this._initial = this._currentName = args.initial;
@@ -285,7 +320,7 @@ export class Machine<
 
   private _createAndStart<N extends keyof B>(name: N, props: StaticProps & DynamicProps) {
     const stateBuilder = this.builders[name];
-    const current = stateBuilder(this, props);
+    const current = stateBuilder(this, props, this._parent as any);
     this._current = current;
     this._currentName = name;
 
@@ -293,6 +328,8 @@ export class Machine<
     if(current.hasChildren) {
       for(const key in current.children) {
         const child = current.children[key];
+        // Set their parent
+        child._parent = this._current;
         child.start(props);
       }
     }
@@ -327,7 +364,7 @@ type NoStaticPropsArgs<B extends BuilderMap<any, any>> = {
   initial: keyof B,
   states: B,
 };
-class MachineBuilder<M extends BaseMessages, Props extends {}> {
+export class MachineBuilder<M extends BaseMessages, Props extends {}> {
   build<B extends BuilderMap<any, M>>(args: NoStaticPropsArgs<B>): Machine<M, B, {}, Props>;
   build<B extends BuilderMap<any, M>, StaticProps extends Partial<Props>>(
     args: MachineArgs<M, B, StaticProps>
