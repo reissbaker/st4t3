@@ -607,16 +607,7 @@ describe("Child states", () => {
       second(): void;
     }
 
-    // Note: machines with a single state that has no transitions are cursed, because the transition
-    // is considered "never" -- which means the _currentName for the state in the machine is
-    // inferred to be "never." (And other cursed inference happens.) Possibly do not use transition
-    // names as inference targets? Instead use the names of the BuilderMap. BuilderMap probably
-    // doesn't need to be a mapped type, because it's just an extends target: you never pass around
-    // raw BuilderMaps, just specific BuilderMaps that extend the base.
-    //
-    // For now, you can work around these cursed machines by setting the single state as
-    // transitioning to itself.
-    const MostInner = create.transition<'MostInner', Messages, Props, HiddenParentMessages>().build(
+    const MostInner = create.transition<never, Messages, Props, HiddenParentMessages>().build(
       (state, parent) => state.build({
         messages: {
           next() {
@@ -625,7 +616,7 @@ describe("Child states", () => {
         },
       })
     );
-    const Inner = create.transition<'Inner', HiddenParentMessages, Props, TopLevelMessages>().build(
+    const Inner = create.transition<never, HiddenParentMessages, Props, TopLevelMessages>().build(
       (state, parent) => state.build({
         children: {
           mostInner: create.machine<Messages, Props>().build({

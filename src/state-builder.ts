@@ -17,7 +17,7 @@ export class StateBuilder<
   Props extends {},
 > {
   constructor(
-    private readonly machine: Machine<Partial<M>, BuilderMap<Next, any>, any, any>,
+    private readonly machine: Machine<Partial<M>, BuilderMap<any>, any, any>,
     readonly props: Props
   ) {}
 
@@ -72,7 +72,7 @@ type StateFunction<
   Dispatcher extends StateDispatcher<M, Props, any>,
   PM extends BaseMessages | null,
 > = (
-  machine: Machine<M, BuilderMap<Next, any>, any, any>,
+  machine: Machine<M, BuilderMap<any>, any, any>,
   props: Props,
   parent: Parent<NonNullable<PM>, any>
 ) => Dispatcher;
@@ -209,23 +209,23 @@ function upsert<Hash extends {}, Key extends keyof Hash>(
  * =================================================================================================
  */
 
-type BuilderMap<Transitions extends string, M extends BaseMessages> = {
-  [K in Transitions]: StateFunction<any, Partial<M>, any, any, any>;
+type BuilderMap<M extends BaseMessages> = {
+  [K: string]: StateFunction<any, Partial<M>, any, any, any>;
 };
 
 type MachineArgs<
   M extends BaseMessages,
-  B extends BuilderMap<any, M>,
+  B extends BuilderMap<M>,
   StaticProps extends {},
 > = {
-  initial: keyof B,
+  initial: keyof B & string,
   states: B,
   props: StaticProps,
 };
 
 export class Machine<
   M extends BaseMessages,
-  B extends BuilderMap<any, M>,
+  B extends BuilderMap<M>,
   StaticProps extends {},
   DynamicProps extends {},
 > {
@@ -236,12 +236,12 @@ export class Machine<
   } = {};
 
   private _current: StateDispatcher<Partial<M>, StaticProps & DynamicProps, any> | null = null;
-  private _currentName: keyof B;
+  private _currentName: keyof B & string;
   private _everRan = false;
   private _running = false;
   private _staticProps: StaticProps;
   private _props: (DynamicProps & StaticProps) | null = null;
-  private readonly _initial: keyof B;
+  private readonly _initial: keyof B & string;
 
   protected _parent: Parent<any, any> | null = null;
 
@@ -318,7 +318,7 @@ export class Machine<
     return upsert(this._dispatcherEventMap, this._currentName, () => new DispatcherFlyweight());
   }
 
-  private _createAndStart<N extends keyof B>(name: N, props: StaticProps & DynamicProps) {
+  private _createAndStart<N extends keyof B>(name: N & string, props: StaticProps & DynamicProps) {
     const stateBuilder = this.builders[name];
     const current = stateBuilder(this, props, this._parent as any);
     this._current = current;
@@ -360,13 +360,13 @@ type DefinedKeys<Some> = {
 }[keyof Some];
 type Rest<Full, Some extends Partial<Full>> = Omit<Full, DefinedKeys<Some>>;
 
-type NoStaticPropsArgs<B extends BuilderMap<any, any>> = {
-  initial: keyof B,
+type NoStaticPropsArgs<B extends BuilderMap<any>> = {
+  initial: keyof B & string,
   states: B,
 };
 export class MachineBuilder<M extends BaseMessages, Props extends {}> {
-  build<B extends BuilderMap<any, M>>(args: NoStaticPropsArgs<B>): Machine<M, B, {}, Props>;
-  build<B extends BuilderMap<any, M>, StaticProps extends Partial<Props>>(
+  build<B extends BuilderMap<M>>(args: NoStaticPropsArgs<B>): Machine<M, B, {}, Props>;
+  build<B extends BuilderMap<M>, StaticProps extends Partial<Props>>(
     args: MachineArgs<M, B, StaticProps>
   ): Machine<M, B, StaticProps, Rest<Props, StaticProps>>;
   build(args: NoStaticPropsArgs<any> | MachineArgs<any, any, any>) {
