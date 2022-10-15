@@ -21,9 +21,9 @@ export class StateBuilder<
     readonly props: Props
   ) {}
 
-  build<C extends Children<M, Props>>(args: BuildArgs<M, Props, C>): StateDispatcher<M, Props, C>;
+  build<C extends Children<Props>>(args: BuildArgs<M, Props, C>): StateDispatcher<M, Props, C>;
   build(): StateDispatcher<M, Props, {}>;
-  build<C extends Children<M, Props>>(args?: BuildArgs<M, Props, C>) {
+  build<C extends Children<Props>>(args?: BuildArgs<M, Props, C>) {
     if(args) return new StateDispatcher(args, this.props);
     return new StateDispatcher({ messages: {} }, this.props);
   }
@@ -33,13 +33,13 @@ export class StateBuilder<
   }
 }
 
-type BuildArgs<M extends BaseMessages, Props extends {}, C extends Children<M, Props>> = {
+type BuildArgs<M extends BaseMessages, Props extends {}, C extends Children<Props>> = {
   children?: C,
   messages: M,
 };
 
-type Children<M extends BaseMessages, Props extends {}> = {
-  [key: string]: Machine<Partial<M>, any, any, Partial<Props>>,
+type Children<Props extends {}> = {
+  [key: string]: Machine<any, any, any, Partial<Props>>,
 };
 
 class DispatchBuilder<
@@ -100,9 +100,9 @@ class Parent<
  * =================================================================================================
  */
 
-export class StateDispatcher<M extends BaseMessages, P extends {}, C extends Children<M, P>> {
+export class StateDispatcher<M extends BaseMessages, P extends {}, C extends Children<P>> {
   readonly hasChildren: boolean; // dumb micro optimization for cpu branch predictor
-  readonly children: Children<M, P>;
+  readonly children: Children<P>;
 
   constructor(
     private readonly args: BuildArgs<M, P, C>,
