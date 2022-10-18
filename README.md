@@ -115,6 +115,41 @@ machine.dispatch("jump"); // No-op, since the jump state ignores further jump me
 machine.dispatch("land"); // Prints "stopping jumping" and then "landed."
 ```
 
+You can also manually attempt state transitions on the state machine itself;
+for example:
+
+```typescript
+machine.goto('Land');
+```
+
+This works identically to `state.goto`, except that by default it will ignore
+the call if you're already in the specified state; e.g. if you're currently in
+state `Land`, calling `machine.goto('Land')` is a no-op. If you want to force
+it to rerun the `Land` initialization, use `machine.force('Land')`.
+
+States themselves don't have this restriction: if you want to transition to
+yourself, you may, as long as you declare that transition when you create the
+state, e.g.
+
+```typescript
+const Land = create.transition<'Land' | 'Jump', /* ... */>().build(state => {
+  return state.build({
+    messages: {
+      someMessage() {
+        state.goto('Land');
+      }
+    },
+  });
+});
+```
+
+This difference is purely for developer experience: typically when you call
+`machine.goto`, what you mean to do is to ensure the machine is in that state;
+you aren't necessarily trying to re-run that state if it's already there.
+Whereas the only use case for calling `state.goto('YOUR_OWN_NAME')` is to
+re-run initialization code; if you didn't mean to do that, you could instead
+simply do nothing (since you know you're already in your own state).
+
 ## What if I want a state that never transitions?
 
 ```typescript
@@ -192,14 +227,58 @@ machine.jump();  // Prints "Jumped with power 5.6"
 
 Props remain the same from the initial `start()` call through all `goto()`
 calls &mdash; you don't need to pass props into transitions. You can think of
-props being constant through a single run of a state machine; you only get to
+props being valid through a single run of a state machine; you only need to
 reset them when you call `stop()` and then a new invocation of `start()`.
+
+That being said, although you're not *required* to propagate them yourself
+through each `goto` call, you may update them on state transitions via `goto`
+if you want to. For example:
+
+```typescript
+type Direction ='north' | 'south' | 'east' | 'west';
+type Props = {
+  direction: Direction;
+};
+type Messages = {
+  move(dir: Direction): void,
+  still(): void,
+};
+
+const Still = create.transition<'Move', Pick<Messages, 'move'>, Props>().build(state => {
+  playAnim(`stand-${state.props.direction}`);
+
+  return state.build({
+    messages: {
+      move(direction) {
+        state.goto('Move', { direction });
+      },
+    },
+  });
+});
+
+const Move = create.transition<'Still' | 'Move', Messages, Props>().build(state => {
+  playAnim(`walk-${state.props.direction}`);
+
+  return state.build({
+    still() {
+      state.goto('Still');
+    },
+    move(direction) {
+      if(direction === state.props.direction) return;
+      // Make sure to force the state, since you're transitioning to yourself
+      state.goto('Move', { direction });
+    },
+  });
+});
+
+```
 
 ## Constant props
 
-You can also have constant props that will never change, even between `start`
-calls; instead of passing them in at `start()` time, you instead pass them in
-when constructing the machine, like so:
+You can also have constant props that are used for every invocation of the
+machine, and aren't passed into and overwritten on every `start` call; instead
+of passing them in at `start()` time, you instead pass them in when
+constructing the machine, like so:
 
 ```typescript
 const machine = create.machine<Messages, Props>().build({

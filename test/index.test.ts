@@ -224,6 +224,15 @@ describe("State Machines", () => {
     expect(spy).toHaveBeenCalledTimes(0);
   });
 
+  it<Should>("transition to a duplicate of the current state if force is called", ({ machine }) => {
+    machine.start({});
+    expect(machine.current()).toStrictEqual("Foo");
+
+    const spy = machine.currentEvents().on("start", vi.fn());
+    machine.force("Foo");
+    expect(spy).toHaveBeenCalledOnce();
+  });
+
   it<Should>("remove handlers for a state event when you call clear()", ({ machine }) => {
     const spy = machine.currentEvents().on("start", vi.fn());
     machine.events('Foo').clear();
@@ -401,12 +410,12 @@ describe("State machines with props", () => {
     });
     expect(spy).toHaveBeenCalledOnce();
 
-    const jumpSpy = machine.events('Jump').on('start', (props) => {
+    const jumpSpy = machine.events('Jump').on('start', vi.fn(props => {
       expect(props).toStrictEqual({
         allowDoubleJumps: true,
         bounceOnLand: true,
       });
-    });
+    }));
     machine.dispatch("jumpUpdateDouble", true);
     expect(jumpSpy).toHaveBeenCalledOnce();
   });

@@ -30,7 +30,9 @@ export class StateBuilder<
   }
 
   goto(next: Next, updateProps?: Partial<Props>) {
-    this.machine.goto(next, updateProps);
+    // All goto calls from states are actually force calls for the machine; the only use case for
+    // transitioning to yourself is to re-run initialization code
+    this.machine.force(next, updateProps);
   }
 }
 
@@ -258,8 +260,12 @@ export class Machine<
 
   goto(next: keyof B & string, updateProps?: Partial<StaticProps & DynamicProps>) {
     // Boilerplate safety
-    this._assertRunning();
     if(next === this._currentName) return;
+    this.force(next, updateProps);
+  }
+
+  force(next: keyof B & string, updateProps?: Partial<StaticProps & DynamicProps>) {
+    this._assertRunning();
     if(!this._props) throw new Error("Internal error: props are null");
 
     // Update props, if new ones were passed in
