@@ -23,3 +23,11 @@ promise.
 Actually you don't need explicit async vs non-async dispatchers for this...
 Just check if the message handler returns a promise. If it does, wait for it;
 otherwise call `done` immediately.
+
+You need to track the type of the Children in StateBuilder. Currently you can
+have nested inner child machines with incompatible props compared to the outer
+machine. It's ok to have fewer props; it's ok to have extra StaticProps (but
+not extra DynamicProps); but it's not ok to have incompatible DynamicProps.
+Really you probably need to track the DynamicProps of child StateBuilders. Or
+rather, you need to track the DynamicProps of StateDispatchers with children.
+(You don't know the Children type at StateBuilder time).
