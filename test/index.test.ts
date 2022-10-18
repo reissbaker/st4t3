@@ -41,6 +41,7 @@ describe("State Machines", () => {
   }
 
   type MachineType = ReturnType<typeof machine>;
+
   type Should = {
     machine: MachineType,
   };

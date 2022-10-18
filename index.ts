@@ -18,7 +18,7 @@ export class StateBuilder<
   Props extends {},
 > {
   constructor(
-    private readonly machine: Machine<Partial<M>, BuilderMap<any>, any, any>,
+    private readonly machine: Machine<Partial<M>, any, any, any>,
     readonly props: Props
   ) {}
 
@@ -49,11 +49,14 @@ class DispatchBuilder<
   Next extends string,
   M extends BaseMessages = {},
   Props extends {} = {},
-  PM extends BaseMessages | null = null
+  ParentMessages extends BaseMessages | null = null
 > {
   build<Dispatcher extends StateDispatcher<M, Props, any>>(
-    buildFn: (builder: StateBuilder<Next, M, Props>, parent: Parent<NonNullable<PM>, any>) => Dispatcher
-  ): StateFunction<Next, M, Props, Dispatcher, PM> {
+    buildFn: (
+      builder: StateBuilder<Next, M, Props>,
+      parent: Parent<NonNullable<ParentMessages>, any>
+    ) => Dispatcher
+  ): StateFunction<Next, M, Props, Dispatcher, ParentMessages> {
     return (machine, props, parent) => {
       return buildFn(new StateBuilder<Next, M, Props>(machine, props), parent);
     };
@@ -69,15 +72,15 @@ export function transition<
 }
 
 type StateFunction<
-  Next extends string,
+  _Next extends string,
   M extends BaseMessages,
   Props extends {},
   Dispatcher extends StateDispatcher<M, Props, any>,
-  PM extends BaseMessages | null,
+  ParentMessages extends BaseMessages | null,
 > = (
-  machine: Machine<M, BuilderMap<any>, any, any>,
+  machine: Machine<M, any, any, any>,
   props: Props,
-  parent: Parent<NonNullable<PM>, any>
+  parent: Parent<NonNullable<ParentMessages>, any>
 ) => Dispatcher;
 
 class Parent<
@@ -197,23 +200,38 @@ function upsert<Hash extends {}, Key extends keyof Hash>(
  * =================================================================================================
  */
 
-type BuilderMap<M extends BaseMessages> = {
-  [K: string]: StateFunction<any, Partial<M>, any, any, any>;
+type BuilderMap<M extends BaseMessages, AllTransitions extends string> = {
+  [K in AllTransitions]: StateFunction<any, Partial<M>, any, any, any>;
 };
+
+// The end goal of this is the final accessor: a way to figure out what keys need to be in the state
+// class map you pass into the machine constructor. Otherwise, the class map won't ensure that your
+// map is exhaustive; that is, you could have asked for transitions to states that don't exist in
+// the map.
+type NextStateOf<T> = T extends StateFunction<infer Next, any, any, any, any> ? Next : never;
+// Grab the state transition names from the builder map
+export type TransitionNamesOf<M> = M extends BuilderMap<any, infer T> ? T : never;
+export type LoadPreciseTransitions<BM extends BuilderMap<any, any>> = NextStateOf<
+  BM[TransitionNamesOf<BM>]
+>;
+export type FullySpecifiedBuilderMap<BM extends BuilderMap<any, any>> = {
+  [K in LoadPreciseTransitions<BM>]: StateFunction<any, any, any, any, any>;
+}
+export type BuilderMapOf<M> = M extends Machine<any, infer BM, any, any> ? BM : never;
 
 type MachineArgs<
   M extends BaseMessages,
-  B extends BuilderMap<M>,
+  B extends BuilderMap<M, any>,
   StaticProps extends {},
 > = {
   initial: keyof B & string,
-  states: B,
+  states: B & FullySpecifiedBuilderMap<B>,
   props: StaticProps,
 };
 
 export class Machine<
   M extends BaseMessages,
-  B extends BuilderMap<M>,
+  B extends BuilderMap<M, any>,
   StaticProps extends {},
   DynamicProps extends {},
 > {
@@ -378,13 +396,13 @@ type DefinedKeys<Some> = {
 }[keyof Some];
 type Rest<Full, Some extends Partial<Full>> = Omit<Full, DefinedKeys<Some>>;
 
-type NoStaticPropsArgs<B extends BuilderMap<any>> = {
+type NoStaticPropsArgs<B extends BuilderMap<any, any>> = {
   initial: keyof B & string,
-  states: B,
+  states: B & FullySpecifiedBuilderMap<B>,
 };
 export class MachineBuilder<M extends BaseMessages, Props extends {}> {
-  build<B extends BuilderMap<M>>(args: NoStaticPropsArgs<B>): Machine<M, B, {}, Props>;
-  build<B extends BuilderMap<M>, StaticProps extends Partial<Props>>(
+  build<B extends BuilderMap<M, any>>(args: NoStaticPropsArgs<B>): Machine<M, B, {}, Props>;
+  build<B extends BuilderMap<M, any>, StaticProps extends Partial<Props>>(
     args: MachineArgs<M, B, StaticProps>
   ): Machine<M, B, StaticProps, Rest<Props, StaticProps>>;
   build(args: NoStaticPropsArgs<any> | MachineArgs<any, any, any>) {
