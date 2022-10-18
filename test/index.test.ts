@@ -771,7 +771,9 @@ testType(() => {
 
 testType(() => {
   // It should throw an error if a state requests a property not offered by the machine
-  const Final = create.transition<never, never, { b: string, a: string }>().build(state => state.build());
+  const Final = create.transition<never, {}, { b: string, a: string }>().build(state => {
+    return state.build();
+  });
 
   // Try without static props
   create.machine().build({
