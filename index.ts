@@ -83,7 +83,7 @@ type DispatchBuildFn<
   parent: Parent<NonNullable<ParentMessages>, any>
 ) => Dispatcher;
 
-class Parent<
+export class Parent<
   M extends BaseMessages,
   Dispatcher extends StateDispatcher<M, any, any>
 > {
