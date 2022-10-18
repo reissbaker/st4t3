@@ -52,13 +52,13 @@ class DispatchBuilder<
   ParentMessages extends BaseMessages | null = null
 > {
   build<Dispatcher extends StateDispatcher<M, Props, any>>(
-    buildFn: (
+    curryBuildFn: (
       builder: StateBuilder<Next, M, Props>,
       parent: Parent<NonNullable<ParentMessages>, any>
     ) => Dispatcher
-  ): StateFunction<Next, M, Props, Dispatcher, ParentMessages> {
+  ): DispatchBuildFn<Next, M, Props, Dispatcher, ParentMessages> {
     return (machine, props, parent) => {
-      return buildFn(new StateBuilder<Next, M, Props>(machine, props), parent);
+      return curryBuildFn(new StateBuilder<Next, M, Props>(machine, props), parent);
     };
   }
 }
@@ -71,7 +71,7 @@ export function transition<
   return new DispatchBuilder();
 }
 
-type StateFunction<
+type DispatchBuildFn<
   _Next extends string,
   M extends BaseMessages,
   Props extends {},
@@ -203,14 +203,14 @@ function upsert<Hash extends {}, Key extends keyof Hash>(
  */
 
 type BuilderMap<M extends BaseMessages, AllTransitions extends string, Props extends {}> = {
-  [K in AllTransitions]: StateFunction<any, Partial<M>, Props, any, any>;
+  [K in AllTransitions]: DispatchBuildFn<any, Partial<M>, Props, any, any>;
 };
 
 // The end goal of this is the final accessor: a way to figure out what keys need to be in the state
 // class map you pass into the machine constructor. Otherwise, the class map won't ensure that your
 // map is exhaustive; that is, you could have asked for transitions to states that don't exist in
 // the map.
-type NextStateOf<T> = T extends StateFunction<infer Next, any, any, any, any> ? Next : never;
+type NextStateOf<T> = T extends DispatchBuildFn<infer Next, any, any, any, any> ? Next : never;
 export type BuilderMapOf<M> = M extends Machine<any, infer BM, any, any> ? BM : never;
 // Grab the state transition names from the builder map. This returns whatever transitions are in
 // the keys; it doesn't yet tell you which transitions are asked for
@@ -220,7 +220,7 @@ export type LoadPreciseTransitions<BM extends BuilderMap<any, any, any>> = NextS
   BM[TransitionNamesOf<BM>]
 >;
 export type FullySpecifiedBuilderMap<BM extends BuilderMap<any, any, any>> = {
-  [K in LoadPreciseTransitions<BM>]: StateFunction<any, any, any, any, any>;
+  [K in LoadPreciseTransitions<BM>]: DispatchBuildFn<any, any, any, any, any>;
 }
 
 type MachineArgs<
