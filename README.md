@@ -572,6 +572,28 @@ const mock = machine
 machine.start({});
 ```
 
+## Dispatching to a parent
+
+Children can opt-in to a special `parent` variable getting passed in at
+construction time, allowing them to dispatch messages back to their parent. All
+they need to do is specify what messages they expect to be able to send to
+their parent; for example:
+
+```typescript
+const DoubleJump = create.transition<
+  never,
+  DoubleJumpMessages,
+  Props,
+  ParentMessages
+>().build((state, parent) => state.build({
+  messages: {
+    someMessage() {
+      parent.dispatch("someParentMessage");
+    },
+  },
+});
+```
+
 # Type safety
 
 * When you create a `machine`, it checks for exhaustiveness at compile
