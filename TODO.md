@@ -31,3 +31,5 @@ not extra DynamicProps); but it's not ok to have incompatible DynamicProps.
 Really you probably need to track the DynamicProps of child StateBuilders. Or
 rather, you need to track the DynamicProps of StateDispatchers with children.
 (You don't know the Children type at StateBuilder time).
+
+Use expect-type to test type narrowing: https://github.com/mmkal/expect-type
