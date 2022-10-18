@@ -200,8 +200,8 @@ function upsert<Hash extends {}, Key extends keyof Hash>(
  * =================================================================================================
  */
 
-type BuilderMap<M extends BaseMessages, AllTransitions extends string> = {
-  [K in AllTransitions]: StateFunction<any, Partial<M>, any, any, any>;
+type BuilderMap<M extends BaseMessages, AllTransitions extends string, Props extends {}> = {
+  [K in AllTransitions]: StateFunction<any, Partial<M>, Props, any, any>;
 };
 
 // The end goal of this is the final accessor: a way to figure out what keys need to be in the state
@@ -212,19 +212,22 @@ type NextStateOf<T> = T extends StateFunction<infer Next, any, any, any, any> ? 
 export type BuilderMapOf<M> = M extends Machine<any, infer BM, any, any> ? BM : never;
 // Grab the state transition names from the builder map. This returns whatever transitions are in
 // the keys; it doesn't yet tell you which transitions are asked for
-export type TransitionNamesOf<M> = M extends BuilderMap<any, infer T> ? T : never;
+export type TransitionNamesOf<M> = M extends BuilderMap<any, infer T, any> ? T : never;
 // Get exactly the list of transitions requested from the builder map
-export type LoadPreciseTransitions<BM extends BuilderMap<any, any>> = NextStateOf<
+export type LoadPreciseTransitions<BM extends BuilderMap<any, any, any>> = NextStateOf<
   BM[TransitionNamesOf<BM>]
 >;
-export type FullySpecifiedBuilderMap<BM extends BuilderMap<any, any>> = {
+export type FullySpecifiedBuilderMap<BM extends BuilderMap<any, any, any>> = {
   [K in LoadPreciseTransitions<BM>]: StateFunction<any, any, any, any, any>;
 }
 
+export type PropsOf<B> = B extends BuilderMap<any, any, infer P> ? P : never;
+
 type MachineArgs<
   M extends BaseMessages,
-  B extends BuilderMap<M, any>,
   StaticProps extends {},
+  DynamicProps extends {} & Rest<PropsOf<B>, StaticProps>,
+  B extends BuilderMap<M, any, StaticProps & DynamicProps>,
 > = {
   initial: keyof B & string,
   states: B & FullySpecifiedBuilderMap<B>,
@@ -233,9 +236,9 @@ type MachineArgs<
 
 export class Machine<
   M extends BaseMessages,
-  B extends BuilderMap<M, any>,
+  B extends BuilderMap<M, any, any>,
   StaticProps extends {},
-  DynamicProps extends {},
+  DynamicProps extends {} & Rest<PropsOf<B>, StaticProps>,
 > {
   readonly builders: B;
 
@@ -253,7 +256,7 @@ export class Machine<
 
   protected _parent: Parent<any, any> | null = null;
 
-  constructor(args: MachineArgs<M, B, StaticProps>) {
+  constructor(args: MachineArgs<M, StaticProps, DynamicProps, B>) {
     this._initial = this._currentName = args.initial;
     this._staticProps = args.props;
     this.builders = args.states;
@@ -398,16 +401,16 @@ type DefinedKeys<Some> = {
 }[keyof Some];
 type Rest<Full, Some extends Partial<Full>> = Omit<Full, DefinedKeys<Some>>;
 
-type NoStaticPropsArgs<B extends BuilderMap<any, any>> = {
+type NoStaticPropsArgs<B extends BuilderMap<any, any, any>> = {
   initial: keyof B & string,
   states: B & FullySpecifiedBuilderMap<B>,
 };
 export class MachineBuilder<M extends BaseMessages, Props extends {}> {
-  build<B extends BuilderMap<M, any>>(args: NoStaticPropsArgs<B>): Machine<M, B, {}, Props>;
-  build<B extends BuilderMap<M, any>, StaticProps extends Partial<Props>>(
-    args: MachineArgs<M, B, StaticProps>
-  ): Machine<M, B, StaticProps, Rest<Props, StaticProps>>;
-  build(args: NoStaticPropsArgs<any> | MachineArgs<any, any, any>) {
+  build<B extends BuilderMap<M, any, any>>(args: NoStaticPropsArgs<B>): Machine<M, B, {}, Rest<PropsOf<B>, {}> & Props>;
+  build<B extends BuilderMap<M, any, any>, StaticProps extends Partial<Props> & Partial<PropsOf<B>>>(
+    args: MachineArgs<M, StaticProps, Rest<PropsOf<B>, StaticProps> & Rest<Props, StaticProps>, B>
+  ): Machine<M, B, StaticProps, Rest<PropsOf<B>, StaticProps> & Rest<Props, StaticProps>>;
+  build(args: NoStaticPropsArgs<any> | MachineArgs<any, any, any, any>) {
     if(hasStaticProps(args)) return new Machine(args);
 
     return new Machine({
@@ -417,10 +420,10 @@ export class MachineBuilder<M extends BaseMessages, Props extends {}> {
   }
 }
 
-function hasStaticProps<N extends NoStaticPropsArgs<any>, M extends MachineArgs<any, any, any>>(
+function hasStaticProps<N extends NoStaticPropsArgs<any>, M extends MachineArgs<any, any, any, any>>(
   args: N | M
 ): args is M {
-  return (args as MachineArgs<any, any, any>).props !== undefined;
+  return (args as MachineArgs<any, any, any, any>).props !== undefined;
 }
 
 export function machine<M extends BaseMessages = {}, Props extends {} = {}>(): MachineBuilder<M, Props> {

@@ -744,3 +744,39 @@ describe("Child states", () => {
     expect(spy).toHaveBeenCalledOnce();
   });
 });
+
+function testType(cb: () => any) {
+  cb();
+}
+
+testType(() => {
+  // It should throw an error when assigning a not-fully-specified machine
+  const NotFinal = create.transition<'Final'>().build(state => state.build());
+  create.machine().build({
+    initial: 'NotFinal',
+    // @ts-expect-error
+    states: { NotFinal }
+  });
+});
+
+testType(() => {
+  // It should throw an error if initial is not a name in the map
+  const Final = create.transition().build(state => state.build());
+  create.machine().build({
+    // @ts-expect-error
+    initial: 'NotFinal',
+    states: { Final },
+  });
+});
+
+testType(() => {
+  // It should throw an error if a state requests a property not offered by the machine
+  const Final = create.transition<never, never, { msg: string }>().build(state => state.build());
+  const huh = create.machine().build({
+    initial: 'Final',
+    states: { Final },
+  });
+
+  // @ts-expect-error
+  huh.start({});
+});
