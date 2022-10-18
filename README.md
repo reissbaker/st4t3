@@ -265,7 +265,6 @@ const Move = create.transition<'Still' | 'Move', Messages, Props>().build(state 
     },
     move(direction) {
       if(direction === state.props.direction) return;
-      // Make sure to force the state, since you're transitioning to yourself
       state.goto('Move', { direction });
     },
   });
