@@ -233,8 +233,8 @@ const machine = create.machine<Messages>().build({
 });
 
 machine.start({});
-machine.dispatch("move", 0.5, 0.2);
-machine.dispatch("jump");
+machine.dispatch("move", 0.5, 0.2); // Compiler checks you pass x, y here
+machine.dispatch("jump"); // Compiler checks you pass nothing here
 ```
 
 # Events
