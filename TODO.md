@@ -31,3 +31,10 @@ not extra DynamicProps); but it's not ok to have incompatible DynamicProps.
 Really you probably need to track the DynamicProps of child StateBuilders. Or
 rather, you need to track the DynamicProps of StateDispatchers with children.
 (You don't know the Children type at StateBuilder time).
+
+You should check that your current impl actually enforces prop exhaustiveness.
+I'm not 100% sure it does right now; for example, you might be able to have a
+state request a prop that the machine never provides.
+
+In general you should write tests for the type system. A combo of
+@ts-expect-error and expect-type should solve most of your needs IMO.
