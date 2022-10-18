@@ -158,9 +158,16 @@ import * as create from "st4t3";
 // Short form:
 export const Final = create.transition().build();
 
-// Long form:
-export const LongFormFinal = create.transition<never>().build(state => {
-  return state.build({});
+// Longer form:
+export const LongerFormFinal = create.transition<never>().build(state => {
+  return state.build();
+});
+
+// Longest form:
+export const LongestFormFinal = create.transition<never>().build(state => {
+  return state.build({
+    messages: {},
+  });
 });
 ```
 
