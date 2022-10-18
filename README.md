@@ -272,9 +272,9 @@ const Move = create.transition<'Still' | 'Move', Messages, Props>().build(state 
 
 ```
 
-## Constant props
+## Static props
 
-You can also have constant props that are used for every invocation of the
+You can also have static props that are used for every invocation of the
 machine, and aren't passed into and overwritten on every `start` call; instead
 of passing them in at `start()` time, you instead pass them in when
 constructing the machine, like so:
@@ -297,6 +297,11 @@ machine.start({
 }); // Prints "Unbouncy land"
 machine.jump();  // Prints "Jumped with power 5.6"
 ```
+
+Note that both static props and regular props can be updated via `state.goto`;
+the only difference is that static props don't need to be passed into
+`machine.start`. This can be useful for nesting machines, where the inner state
+machine has extra props that the outer one doesn't need to be aware of.
 
 ## Message parameters
 
