@@ -1,6 +1,5 @@
 import { vi, expect, it, describe, beforeEach } from "vitest";
-import { TransitionTo, Machine } from "../index";
-import * as create from "../src/state-builder";
+import * as create from "../index";
 
 describe("State Machines", () => {
   type Messages = {

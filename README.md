@@ -5,7 +5,7 @@ handle large state graphs with minimal memory usage. It only keeps a single
 state instance in memory at a time, and allows you to break large state
 machines into many files rather than forcing you to define the machine entirely
 in one file to get full type safety. There are no runtime dependencies and the
-code is <250 lines of TypeScript, excluding comments.
+code is <350 lines of TypeScript, excluding comments.
 
 * [Development](#development)
 * [Getting started](#getting-started)
@@ -22,69 +22,81 @@ report with `npm run coverage`.
 
 # Getting started
 
-Every state machine is composed of two parts: a set of states, and the machine
-that runs the states. To define a state, you extend the abstract `TransitionTo`
-class:
+Every state machine is composed of three parts: a set of messages, a set of
+states, and the machine that runs the states.
+
+To define the messages, define a type or interface with some functions:
 
 ```typescript
-import { TransitionTo } from "st4t3";
-
-// You must pass the names of any states you plan on transitioning to in the
-// class definition, like so:
-export default class Jump extends TransitionTo<"Land"> {
-  // Start gets automatically called when a state is entered (or when the
-  // machine starts, if you're the initial state)
-  start() {
-    console.log("jumping!");
-  }
-  // Stop gets automatically called when you're leaving a state (or when the
-  // machine stops, if you're the current state)
-  stop() {
-    console.log("stopping jumping");
-  }
-
-  // Custom code
-  jump() {
-    // If you're already jumping, do nothing
-  }
-  land() {
-    // Since you declared you can transition to the "Land" state, you can call
-    // that here.
-    this.transitionTo("Land");
-  }
-}
+export type Messages = {
+  jump(): void,
+  land(): void,
+};
 ```
 
-Now let's look at what a `Land` state would look like:
+The total set of messages exists purely in the type system; it has no runtime
+representation or cost. Messages sent at runtime are just the string name of
+the message, alongside any arguments the function takes; the TypeScript
+compiler will typecheck them for you just like it typechecks ordinary function
+calls.
+
+States can listen to these messages and act on them:
 
 ```typescript
-import { TransitionTo } from "st4t3";
+import * as create from "st4t3";
+import { Messages } from "./messages";
 
-export default class Land extends TransitionTo<"Jump"> {
-  start() {
-    console.log("landed.");
-  }
+// You must pass the names of any states you plan on transitioning to in the
+// state definition and any messages you listen to, like so:
+export const Jump = create.transition<"Land", Pick<Messages, "land">>().build(state => {
+  console.log("jumped!");
 
-  // Custom code
-  land() {
-    // If you're already landed, do nothing
-  }
-  jump() {
-    this.transitionTo("Jump");
-  }
-}
+  return state.build({
+    messages: {
+      // Stop is a special message that fires whenever you're leaving a state
+      stop() {
+        console.log("stopping jumping");
+      },
+      land() {
+        // Since you declared you can transition to the "Land" state, you can call
+        // that here.
+        state.goto("Land");
+      },
+    },
+  });
+});
+```
+
+Now let's look at what a `Land` state might look like:
+
+```typescript
+import * as create from "st4t3";
+import { Messages } from "./messages";
+
+export const Land = create.transition<"Jump", Pick<Messages, "jump">>().build(state => {
+  console.log("landed");
+
+  return statee.build({
+    messages: {
+      jump() {
+        state.goto("Jump");
+      }
+    },
+  });
+});
 ```
 
 Now that we have our two states, `Jump` and `Land`, transitioning between each
 other, let's wire them up in a state machine so they can run:
 
 ```typescript
-import { Machine } from "st4t3";
-import Jump from "./jump";
-import Land from "./land";
+import * as create from "st4t3";
+import { Messages } from "./messages";
+import { Jump } from "./jump";
+import { Land } from "./land";
 
 // Pass in the initial state name, as well as the state classes themselves:
-const machine = new Machine({
+const machine = create.machine<Messages>().build({
   initial: "Land",
   states: {
     Jump, Land
@@ -92,63 +104,23 @@ const machine = new Machine({
 });
 
 machine.start({}); // Prints "landed."
-machine.current().jump(); // Prints "jumped!"
-machine.current().jump(); // No-op, since Jump#jump() is a no-op
-machine.current().land(); // Prints "stopping jumping" and then "landed."
-```
-
-## Reducing code duplication
-
-You might have noticed that the examples above duplicated some boilerplate,
-like the no-op method `jump` for the `Jump` class, and `land` for the `Land`
-class. It's not that bad for a small state machine, but for a large one, you
-might end up with quite a bit of boilerplate. Luckily, TypeScript makes it easy
-to remove this boilerplate via inheritance:
-
-```typescript
-import { TransitionTo } from "st4t3";
-
-export default abstract class BaseState extends TransitionTo<"Jump" | "Land"> {
-  jump() {}
-  land() {}
-}
-```
-
-Then you can slim down the individual states like so:
-
-```typescript
-import BaseState from "./base";
-
-export default class Jump extends BaseState {
-  start() {
-    console.log("jumped!");
-  }
-  land() {
-    this.transitionTo("Land");
-  }
-}
-```
-
-```typescript
-import BaseState from "./base";
-
-export default class Land extends BaseState {
-  start() {
-    console.log("landed.");
-  }
-  jump() {
-    this.transitionTo("Jump");
-  }
-}
+machine.dispatch("jump"); // Prints "jumped!"
+machine.dispatch("jump"); // No-op, since the jump state ignores further jump messages
+machine.dispatch("land"); // Prints "stopping jumping" and then "landed."
 ```
 
 ## What if I want a state that never transitions?
 
 ```typescript
-import { TransitionTo } from "st4t3";
+import * as create from "st4t3";
 
-export default Final extends TransitionTo<never> {
-}
+// Short form:
+export const Final = create.transition().build();
+
+// Long form:
+export const LongFormFinal = create.transition<never>().build(state => {
+  return state.build({});
+});
 ```
 
 # Injecting props
@@ -161,28 +133,42 @@ you'll need to provide it. In the state class, you can access the data by
 reading `this.props`. For example:
 
 ```typescript
-type JumpProps = { jumpPower: number };
-class Jump extends TransitionTo<'Land', JumpProps> {
-  start() {
-    console.log(`Jumped with power ${this.props.jumpPower}`);
-  }
+export type Messages = {
+  jump(): void,
+  land(): void,
+};
 
-  jump() {}
-  land() { this.transitionTo('Land'); }
-}
+export type Props = {
+  jumpPower: number,
+  bounceOnLand: boolean,
+};
+```
 
-type LandProps = { bounceOnLand: boolean };
-class Land extends TransitionTo<'Jump', LandProps> {
-  start() {
-    if(this.props.bounceOnLand) console.log("Bouncy land");
-    else console.log("Unbouncy land");
-  }
+```typescript
+type JumpProps = Pick<Props, "jumpPower">;
+type JumpMessages = Pick<Messages, "land">;
+const Jump = create.transition<"Land", JumpMessages, JumpProps>().build(state => {
+  console.log(`Jumped with power ${state.props.jumpPower}`);
+  return state.build({
+    messages: {
+      land() { state.goto("Land") }
+    }
+  });
+});
 
-  jump() { this.transitionTo("Jump"); }
-  land() {}
-}
+type LandProps = Pick<Props, "bounceOnLand">;
+type LandMessages = Pick<Messages, "jump">;
+const Land = create.transition<"Jump", LandMessages, LandProps>().build(state => {
+  if(this.props.bounceOnLand) console.log("Bouncy land");
+  else console.log("Unbouncy land");
+  return state.build({
+    messages: {
+      jump() { state.goto("Jump"); }
+    }
+  });
+});
 
-const machine = new Machine({
+const machine = create.machine<Messages, Props>().build({
   initial: "Land",
   states: {
     Jump, Land,
@@ -198,31 +184,73 @@ machine.start({
 machine.jump();  // Prints "Jumped with power 5.6"
 ```
 
-The type for the `props` passed into the `start()` call is inferred from the
-props defined by the state classes; if you're missing a property that a state
-class requires, it'll fail to compile.
+Props remain the same from the initial `start()` call through all `goto()`
+calls &mdash; you don't need to pass props into transitions. You can think of
+props being constant through a single run of a state machine; you only get to
+reset them when you call `stop()` and then a new invocation of `start()`.
 
-Props remain the same from the initial `start()` call through all
-`transition()` calls &mdash; you don't need to pass props into transitions. You
-can think of props being constant through a single run of a state machine; you
-only get to reset them when you call `stop()` and then a new invocation of
-`start()`.
+## Constant props
+
+You can also have constant props that will never change, even between `start`
+calls; instead of passing them in at `start()` time, you instead pass them in
+when constructing the machine, like so:
+
+```typescript
+const machine = create.machine<Messages, Props>().build({
+  initial: "Land",
+  states: {
+    Jump, Land,
+  },
+  props: {
+    jumpPower: 5.6,
+  },
+});
+
+// Since you already specified `jumpPower` in the machine constructor, you only
+// pass in `bounceOnLand` here. This is enforced by the type system.
+machine.start({
+  bounceOnLand: false,
+}); // Prints "Unbouncy land"
+machine.jump();  // Prints "Jumped with power 5.6"
+```
+
+## Message parameters
+
+Sometimes you may want to pass data along with your messages; for example, if
+movement is being controlled by an analog stick, you'd want to know how much
+the stick is being tilted. The message type can have functions define
+parameters, and then the `dispatch` function will require you to pass them in
+for those messages; e.g.:
+
+```typescript
+type Messages = {
+  jump(): void,
+  move(x: number, y: number),
+};
+
+const machine = create.machine<Messages>().build({
+  // ...
+});
+
+machine.start({});
+machine.dispatch("move", 0.5, 0.2);
+machine.dispatch("jump");
+```
 
 # Events
 
-State machines emit events when they start and stop, and you can listen to them
-via a slimmed-down version of the NodeJS EventEmitter API. All state
-EventEmitters are accessible from `machine.events('StateClassName')`; for
-example, to register for the `Jump` class's `start` event, you'd do the
-following:
+States emit events when they start and stop, and you can listen to them via a
+slimmed-down version of the NodeJS EventEmitter API. All state EventEmitters
+are accessible from `machine.events('StateName')`; for example, to register for
+the `Jump` state's `start` event, you'd do the following:
 
 ```typescript
-machine.events("Jump").on("start", (state: Jump) => {
+machine.events("Jump").on("start", (props: JumpProps) => {
   // ...
 });
 
 // Or, since type inference works on callbacks, you can leave out the type:
-machine.events("Jump").on("start", (state) => {
+machine.events("Jump").on("start", (props) => {
   // ...
 });
 ```
@@ -231,7 +259,7 @@ The state names passed in as strings are type-checked to ensure that you're
 actually referring to a real state that exists in the state machine you
 defined, and didn't typo "Jupm" instead of "Jump."
 
-All events generated by state machines take the state as the first argument to
+All events generated by state machines take the props as the first argument to
 the callback (although you can of course leave it out if you don't need it).
 However, the EventEmitter API is fairly generic, if you want to import it and
 use it for your own purposes; it takes a single type parameter defining the
@@ -265,7 +293,7 @@ emitter.emit("render", someGraphicsObject);
 Runs the callback every time either `start` or `stop` is called. For example:
 
 ```typescript
-machine.events("Land").on("start", (state) => {
+machine.events("Land").on("start", (props) => {
   // ...
 });
 ```
@@ -287,7 +315,7 @@ Runs the callback the first time either `start` or `stop` is called, and then
 removes it from the listener list. For example:
 
 ```typescript
-machine.events("Land").once("start", (state) => {
+machine.events("Land").once("start", (props) => {
   // ...
 });
 ```
@@ -307,81 +335,77 @@ using this as a generic EventEmitter class.
 # Nested state machines
 
 The st4t3 library has built-in support for nested (also called "hierarchical")
-state machines, using the readonly `children` property. State machines nested
+state machines, using the `children` property. State machines nested
 inside states will automatically be started when the parent state starts, and
-stopped when the parent stops, and will have the parent's props passed to it
-along with an extra `parent` param corresponding to the parent state. For
-example:
+stopped when the parent stops, and will have the parent's props passed to it at
+start time. All messages dispatched to the parent will also be forwarded to the
+child. For example:
 
 ```typescript
-import { TransitionTo, Machine } from "st4t3";
+import * as create from "st4t3";
 
-class InitialJump extends TransitionTo<"DoubleJump"> {
-  start() {
-    console.log("initial jump");
-  }
+type Messages = {
+  jump(): void,
+  land(): void,
+};
 
-  jump() {
-    // Double jumps are allowed
-    this.transitionTo("DoubleJump");
-  }
-}
+const InitialJump = create.transition<"DoubleJump", Pick<Messages, "jump">>().build(state => {
+  console.log("initial jump");
+  return state.build({
+    messages: {
+      jump() {
+        state.goto("DoubleJump");
+      }
+    },
+  });
+});
 
-class DoubleJump extends TransitionTo<never> {
-  start() {
-    console.log("double jump");
-  }
+const DoubleJump = create.transition().build(state => {
+  console.log("double jump");
+  // Triple jumps are not allowed, so just ignore all messages
+  return state.build({});
+});
 
-  jump() {
-    // Triple jumps are not allowed: this is a no-op
-  }
-}
+const Jump = create.transition<"Land", Pick<Messages, "land">>().build(state => {
+  return state.build({
+    children: {
+      jumpMachine: create.machine<Messages>().build({
+        initial: "InitialJump",
+        states: { InitialJump, DoubleJump },
+      }),
+    },
+    messages: {
+      land() { state.goto("Land"); },
+    },
+  });
+});
 
-export default class Jump extends TransitionTo<"Land"> {
-  readonly children = {
-    jumpMachine: new Machine({
-      initial: "InitialJump",
-      states: { InitialJump, DoubleJump },
-    }),
-  };
+const Land = create.transition<"Jump", Pick<Messages, "jump">>().build(state => {
+  return state.build({
+    messages: {
+      jump() {
+        state.goto("Jump");
+      },
+    }
+  });
+});
 
-  jump() {
-    // If we've jumped once, this will print "double jump"
-    // Otherwise it's a no-op: you can't jump again after you've double-jumped,
-    // until you land.
-    this.children.jumpMachine.jump();
-  }
-
-  land() {
-    this.transitionTo("Land");
-  }
-}
-
-class Land extends TransitionTo<"Jump"> {
-  jump() {
-    this.transitionTo("Jump");
-  }
-  // We're already landed, so this is a no-op
-  land() {
-  }
-}
-
-const machine = new Machine({
+const machine = create.machine<Messages>().build({
   initial: "Land",
   states: { Land, Jump },
 });
 
-// Land#start is called:
-machine.start();
+// Runs the function to create the Land state
+machine.start({});
 
 // Land#stop is called, and Jump#start and InitialJump#start are then called:
-machine.current().jump();
+machine.dispatch("jump");
 
 // InitialJump#stop is called, then DoubleJump#start is called:
-machine.current().jump();
+machine.dispatch("jump");
 
 // Jump#stop and DoubleJump#stop are called, then Land#start is called:
-machine.current().land();
+machine.dispatch("land");
 ```
 
 Nested state machines, like all state machines, don't need to all be defined in
@@ -398,7 +422,7 @@ machine
   .events("Jump")
   .child("jumpMachine")
   .events("InitialJump")
-  .on("start", () => {
+  .on("start", (props) => {
   });
 ```
 
@@ -409,33 +433,39 @@ states. You can continue chaining these calls to arbitrarily-deeply-nested
 machines; for an example taken directly from our test suite:
 
 ```typescript
-class MostOuter extends TransitionTo<never> {
-  readonly children = {
-    child: new Machine({
-      initial: "Outer",
-      states: { Outer },
-    }),
-  };
-}
-class Outer extends TransitionTo<never> {
-  readonly children = {
-      child: new Machine({
-      initial: "Inner",
-      states: { Inner },
-    })
-  };
-}
-class Inner extends TransitionTo<never> {
-  readonly children = {
-    child: new Machine({
+const MostInner = create.transition().build(s => s.build());
+
+const Inner = create.transition().build(s => s.build({
+  children: {
+    child: create.machine().build({
       initial: "MostInner",
       states: { MostInner },
     }),
-  };
-}
-class MostInner extends TransitionTo<never> {}
+  },
+  messages: {},
+}));
 
-const machine = new Machine({
+const Outer = create.transition().build(s => s.build({
+  children: {
+    child: create.machine().build({
+      initial: "Inner",
+      states: { Inner },
+    }),
+  },
+  messages: {},
+}));
+
+const MostOuter = create.transition().build(s => s.build({
+  children: {
+    child: create.machine().build({
+      initial: "Outer",
+      states: { Outer },
+    }),
+  },
+  messages: {},
+}));
+
+const machine = create.machine().build({
   initial: "MostOuter",
   states: { MostOuter },
 });
@@ -449,6 +479,8 @@ const mock = machine
              .child("child")
              .events("MostInner")
              .on("start", vi.fn());
+
+machine.start({});
 ```
 
 # Type safety
@@ -456,9 +488,6 @@ const mock = machine
 * When you create a new `Machine` instance, it checks for exhaustiveness at
   compile time: you can't accidentally forget to include a state that one of
   your other states needs to transition to.
-* Any method defined on *all* your states is callable from `machine.current()`.
-  You don't need any special type definitions to make this happen; it's
-  automatically inferred.
 * A state can only transition to the states it names in its class definition.
   As a result, you have to use string literals &mdash; the compiler can't
   analyze dynamic strings passed in at runtime. That being said, this
@@ -468,13 +497,13 @@ const mock = machine
 
 # Performance
 
-`st4t3` allocates the state classes on-demand, when you call `start` or
-`transitionTo`. It only keeps the current state in memory (or no states in
-memory, prior to the first `start` call).
+`st4t3` allocates the state objects on-demand, when you call `start` or `goto`.
+It only keeps the current state in memory (or no states in memory, prior to the
+first `start` call).
 
 ```typescript
 // Jump and Land are not allocated yet
-const machine = new Machine({
+const machine = create.machine<Messages, Props>().build({
   initial: "Land",
   states: { Jump, Land }
 });

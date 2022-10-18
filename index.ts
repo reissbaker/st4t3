@@ -1,302 +1,391 @@
 import { EventEmitter } from "./src/event-emitter";
 export { EventEmitter };
 
+type BaseMessages = {
+  stop?: () => any,
+} & {
+  [key: string]: undefined | ((...args: any) => any),
+};
+
 /*
- * The state class you need to extend
+ * State creation
  * =================================================================================================
  */
 
-// Utility types to make defining state class constructors less of a hassle:
-export type ConstructorMachine<NextState extends string> = Machine<StateClassMap<NextState>, any>;
-export type MachineProps = { [key: string]: any }
-
-// Event emitters for states
-export type StateEvents<S extends TransitionTo<any, any>> = {
-  start: S,
-  stop: S,
-};
-export type StateEventEmitter<S extends TransitionTo<any, any>> = EventEmitter<StateEvents<S>>
-
-type RemoveParent<Props extends MachineProps> = {
-  [K in Exclude<keyof Props, 'parent'>]: Props[K];
-};
-
-export type ChildMachine<NextState extends string, Props extends MachineProps> =
-  Machine<any, RemoveParent<Props> & ({ parent: TransitionTo<NextState, Props> } | {})>;
-
-export type MachineChildren<NextState extends string, Props extends MachineProps> = {
-  [key: string]: ChildMachine<NextState, Props>
-};
-
-// The class to extend
-export abstract class TransitionTo<NextState extends string, Props extends MachineProps = {}> {
-  readonly children?: MachineChildren<NextState, Props>;
-
+export class StateBuilder<
+  Next extends string,
+  M extends BaseMessages,
+  Props extends {},
+> {
   constructor(
-    protected readonly machine: ConstructorMachine<NextState>,
-    readonly props: Props,
-  ) { }
+    private readonly machine: Machine<Partial<M>, BuilderMap<any>, any, any>,
+    readonly props: Props
+  ) {}
 
-  // For some reason, TSC freaks out if you use StateEventEmitter<this> even though it should be
-  // able to infer all the way down. Whatever, just use any here; the Machine class makes sure it's
-  // the right emitter.
-  _start(emitter: StateEventEmitter<any>) {
-    this.start();
-    if(this.children) {
-      for(const key in this.children) {
-        const child = this.children[key];
-        child.start({
-          ...this.props,
-          parent: this,
-        });
-      }
-    }
-    emitter.emit("start", this);
+  build<C extends Children<Props>>(args: BuildArgs<M, Props, C>): StateDispatcher<M, Props, C>;
+  build(): StateDispatcher<M, Props, {}>;
+  build<C extends Children<Props>>(args?: BuildArgs<M, Props, C>) {
+    if(args) return new StateDispatcher(args, this.props);
+    return new StateDispatcher({ messages: {} }, this.props);
   }
-  protected start() {}
 
-  // Ditto
-  _stop(emitter: StateEventEmitter<any>) {
-    this.stop();
-    if(this.children) {
-      for(const key in this.children) {
-        const child = this.children[key];
-        child.stop();
-      }
-    }
-    emitter.emit("stop", this);
-  }
-  protected stop() {}
-
-  transitionTo(state: keyof StateClassMap<NextState>) {
-    this.machine.transitionTo(state);
-  }
-};
-
-/*
- * Type-level definitions
- * =================================================================================================
- */
-
-// A constructor for a state
-export type StateClass<T extends string, D extends MachineProps> = {
-  new(machine: Machine<any, any>, props: D): TransitionTo<T, D>
-};
-
-// The map of names to state classes you pass into the machine
-export type StateClassMap<AllTransitions extends string> = {
-  [K in AllTransitions]: StateClass<any, any>;
-};
-
-// The end goal of this is the final accessor: a way to figure out what keys need to be in the state
-// class map you pass into the machine constructor. Otherwise, the class map won't ensure that your
-// map is exhaustive; that is, you could have asked for transitions to states that don't exist in
-// the map.
-export type NextStateOf<T> = T extends TransitionTo<infer Next, any> ? Next : never;
-export type StatesOf<SCM extends StateClassMap<any>> = SCM[TransitionNamesOf<SCM>];
-export type LoadPreciseTransitions<SCM extends StateClassMap<any>> = NextStateOf<
-  InstanceType<SCM[TransitionNamesOf<SCM>]>
->;
-export type FullySpecifiedStateClassMap<SCM extends StateClassMap<any>> = {
-  [K in LoadPreciseTransitions<SCM>]: StateClass<any, any>;
-}
-
-// The end goal of this is the final accessor: a way to figure out what data needs to be passed to a
-// start() function, given a state class map.
-//
-// First, we get all of the MachineProps from each state class, and return a map of {[name]: data}
-export type MachinePropsByStates<T extends StateClassMap<any>> = {
-  [K in keyof T]: T[K] extends StateClass<any, infer Props> ? Props : never;
-}
-// Next, we get the union of all of the data from that map
-export type MachinePropsUnion<T extends { [key: string]: MachineProps }> = T[keyof T];
-// This crazy type puts a union type into a contravariant type position, forcing it into an
-// intersection type
-export type Contravariant<T> =
-  (T extends any ? (contra: T) => void : never) extends ((contra: infer I) => void) ? I : never;
-// Tie it all together to get the intersection of all machine data from the state class map:
-export type MachinePropsFromStateClasses<T extends StateClassMap<any>> = Contravariant<
-  MachinePropsUnion<
-    MachinePropsByStates<T>
-  >
->;
-
-// This is useful for generating child event names, and debugging type inference
-export type SCMFrom<M> = M extends Machine<infer A, any> ? A : never;
-
-// Grab the state transition names from either the state class map, or the machine
-export type TransitionNamesOf<M> = M extends StateClassMap<infer T> ? T :
-                               M extends Machine<infer A, any> ? TransitionNamesOf<A> : never;
-
-// Utility type to easily express the events for a given state class map
-export type EventsForStates<SCM extends StateClassMap<any>> = {
-  [K in keyof SCM]: StateEventEmitter<InstanceType<SCM[K]>>
-};
-
-/*
- * Flyweights to call events and child events on, even when the underlying states and child machines
- * don't exist.
- * =================================================================================================
- */
-
-export type AllChildMachineNames<State extends TransitionTo<any, any>> = keyof State['children'];
-
-export type ChildMachineName<Name extends string, State extends TransitionTo<any, any>> =
-  Name extends AllChildMachineNames<State> ? Name : never;
-
-export type NamedChildMachine<Name extends string, State extends TransitionTo<any, any>> =
-  Name extends AllChildMachineNames<State> ? (
-    State['children'][Name] extends Machine<any, any> ? State['children'][Name] : never
-  ): never;
-
-export class MachineFlyweight<M extends Machine<any, any>> {
-  readonly _stateMap: FlyweightStateMap<SCMFrom<M>> = {};
-
-  events<Name extends keyof SCMFrom<M>>(name: string & Name): StateFlyweight<InstanceType<SCMFrom<M>[Name]>> {
-    const cachedState = this._stateMap[name];
-    if(cachedState) return cachedState;
-
-    const state = new StateFlyweight();
-    this._stateMap[name] = state;
-    return state;
+  goto(next: Next & string) {
+    this.machine.goto(next);
   }
 }
 
-export class StateFlyweight<
-  State extends TransitionTo<any, any>
-> extends EventEmitter<StateEvents<State>> {
-  readonly _machineMap: FlyweightMachineMap<State> = {};
+type BuildArgs<M extends BaseMessages, Props extends {}, C extends Children<Props>> = {
+  children?: C,
+  messages: M,
+};
 
-  child<Name extends AllChildMachineNames<State> & string>(
-    name: Name
-  ): MachineFlyweight<NamedChildMachine<Name, State>> {
-    const cachedMachine = this._machineMap[name];
-    if(cachedMachine) return cachedMachine;
+type Children<Props extends {}> = {
+  [key: string]: Machine<any, any, any, Partial<Props>>,
+};
 
-    const machine = new MachineFlyweight();
-    this._machineMap[name] = machine;
-    return machine;
+class DispatchBuilder<
+  Next extends string,
+  M extends BaseMessages = {},
+  Props extends {} = {},
+  PM extends BaseMessages | null = null
+> {
+  build<Dispatcher extends StateDispatcher<M, Props, any>>(
+    buildFn: (builder: StateBuilder<Next, M, Props>, parent: Parent<NonNullable<PM>, any>) => Dispatcher
+  ): StateFunction<Next, M, Props, Dispatcher, PM> {
+    return (machine, props, parent) => {
+      return buildFn(new StateBuilder<Next, M, Props>(machine, props), parent);
+    };
   }
 }
+export function transition<
+  Next extends string = never,
+  M extends BaseMessages = {},
+  Props extends {} = {},
+  Parent extends BaseMessages | null = null,
+>(): DispatchBuilder<Next, M, Props, Parent> {
+  return new DispatchBuilder();
+}
 
-type FlyweightStateMap<SCM extends StateClassMap<any>> = {
-  [K in keyof SCM]?: StateFlyweight<InstanceType<SCM[K]>>
-};
-type FlyweightMachineMap<State extends TransitionTo<any, any>> = {
-  [K in AllChildMachineNames<State>]?: MachineFlyweight<any>
-};
+type StateFunction<
+  Next extends string,
+  M extends BaseMessages,
+  Props extends {},
+  Dispatcher extends StateDispatcher<M, Props, any>,
+  PM extends BaseMessages | null,
+> = (
+  machine: Machine<M, BuilderMap<any>, any, any>,
+  props: Props,
+  parent: Parent<NonNullable<PM>, any>
+) => Dispatcher;
 
-/*
- * The machine class that runs and keeps track of states
- * =================================================================================================
- */
-export class Machine<SCM extends StateClassMap<any>, Props extends MachinePropsFromStateClasses<SCM>> {
-  props: Props | null = null;
+class Parent<
+  M extends BaseMessages,
+  Dispatcher extends StateDispatcher<M, any, any>
+> {
+  constructor(private readonly dispatcher: Dispatcher) {}
 
-  private scm: SCM;
-  private _events: FlyweightStateMap<SCM> = {};
-  private _current: InstanceType<SCM[keyof SCM]> | null = null;
-  private _running = false;
-  private _everRan = false;
-  private readonly _initial: keyof SCM;
-  private _currentName: keyof SCM;
-
-  constructor(
-    input: {
-      initial: keyof SCM,
-      states: SCM & FullySpecifiedStateClassMap<SCM>,
-    }
+  // Allows dispatching any message except the system-reserved "stop" message
+  dispatch<Name extends Exclude<keyof M, "stop">>(
+    name: Name,
+    ...data: Name extends "stop" ? never : Params<M[Name]>
   ) {
-    const args = input.states;
-    this._currentName = this._initial = input.initial;
-    this.scm = args;
+    this.dispatcher.dispatchExceptStop(
+      name,
+      ...data
+    );
+  }
+}
+
+/*
+ * Message dispatching for states
+ * =================================================================================================
+ */
+
+export class StateDispatcher<M extends BaseMessages, P extends {}, C extends Children<P>> {
+  readonly hasChildren: boolean; // dumb micro optimization for cpu branch predictor
+  readonly children: Children<P>;
+
+  constructor(
+    private readonly args: BuildArgs<M, P, C>,
+    private readonly props: P
+  ) {
+    this.children = args.children || {};
+    this.hasChildren = !!args.children;
   }
 
-  start(props: Props) {
-    if(this._running) return;
+  dispatch<Name extends keyof M>(
+    name: Name,
+    emitter: EventEmitter<StateEvents<P>> | undefined,
+    ...data: Name extends "stop" ? [] : Params<M[Name]>
+  ) {
+    if(this.hasChildren) {
+      for(const key in this.children) {
+        const child = this.children[key];
+        child.dispatch(name, ...data);
+      }
+    }
 
-    this._everRan = true;
-    this._running = true;
-    this.props = props;
+    const handler = this.args.messages[name];
+    if(handler) {
+      const d = data as any[];
+      handler(...d);
+    }
 
-    this._createAndStart(this._initial, props);
+    if(emitter && name === "stop") emitter.emit("stop", this.props);
   }
 
-  hydrate(flyweight: MachineFlyweight<this>) {
-    this._events = flyweight._stateMap;
+  dispatchExceptStop<Name extends Exclude<keyof M, "stop">>(
+    name: Name,
+    ...data: Name extends "stop" ? [] : Params<M[Name]>
+  ) {
+    this.dispatch(name, undefined, ...data);
+  }
+}
+
+type Params<T> = T extends (...args: any) => any ? Parameters<T> : [];
+
+/*
+ * Flyweights for event registration
+ * =================================================================================================
+ */
+
+export type StateEvents<Props extends {}> = {
+  start: Props,
+  stop: Props,
+};
+
+export class MachineFlyweight<Props extends {}, M extends Machine<any, any, any, any>> {
+  private readonly dispatchers: {
+    [K in M["builders"]]?: DispatcherFlyweight<Props, ReturnType<M["builders"][K]>>;
+  } = {};
+
+  _emit<Name extends keyof StateEvents<Props>>(name: Name, data: StateEvents<Props>[Name]) {
+    for(const k in this.dispatchers) {
+      const key: keyof M["builders"] = k;
+      const child = this.dispatchers[key];
+      if(child) child.emit(name, data);
+    }
   }
 
-  // Given a name, transition to that state
-  transitionTo(state: keyof SCM) {
-    // Boilerplate null safety
-    if(!this._everRan) throw new Error("State machine was never started");
-    if(!this._running) throw new Error("State machine is stopped");
+  events<Name extends keyof M["builders"]>(name: Name): DispatcherFlyweight<Props, ReturnType<M["builders"][Name]>> {
+    return upsert(this.dispatchers, name, () => new DispatcherFlyweight());
+  }
+}
 
-    // Ignore transitions to the same state
-    if(state === this._currentName) return;
+type GetChildren<T> = T extends StateDispatcher<any, any, infer C> ? C : never;
+export class DispatcherFlyweight<
+  Props extends {},
+  Dispatcher extends StateDispatcher<any, Props, any>
+> extends EventEmitter<StateEvents<Props>> {
+  readonly children: {
+    [K in keyof GetChildren<Dispatcher>]?: MachineFlyweight<Props, GetChildren<Dispatcher>[K]>;
+  } = {};
 
-    this._stopCurrent();
-    // If we've gotten this far, we know that the machine has been started and can assume this.props
-    // is either non-null, or is intended to be null (all states expect null). Force cast and go
-    this._createAndStart(state, this.props as unknown as MachinePropsFromStateClasses<SCM>);
+  override emit<Name extends keyof StateEvents<Props>>(name: Name, data: StateEvents<Props>[Name]) {
+    for(const key in this.children) {
+      const child = this.children[key];
+      if(child) child._emit(name, data);
+    }
+    super.emit(name, data);
   }
 
-  stop() {
-    if(!this._running) return;
-    this._running = false;
-    this._stopCurrent();
+  child<Name extends keyof GetChildren<Dispatcher>>(name: Name) {
+    return upsert(this.children, name, () => new MachineFlyweight());
+  }
+}
+
+function upsert<Hash extends {}, Key extends keyof Hash>(
+  hash: Hash, key: Key, create: () => NonNullable<Hash[Key]>
+): NonNullable<Hash[Key]> {
+  let val = hash[key];
+  if(val) return val;
+
+  const createdVal = create();
+  hash[key] = createdVal;
+  return createdVal;
+}
+
+/*
+ * Machines
+ * =================================================================================================
+ */
+
+type BuilderMap<M extends BaseMessages> = {
+  [K: string]: StateFunction<any, Partial<M>, any, any, any>;
+};
+
+type MachineArgs<
+  M extends BaseMessages,
+  B extends BuilderMap<M>,
+  StaticProps extends {},
+> = {
+  initial: keyof B & string,
+  states: B,
+  props: StaticProps,
+};
+
+export class Machine<
+  M extends BaseMessages,
+  B extends BuilderMap<M>,
+  StaticProps extends {},
+  DynamicProps extends {},
+> {
+  readonly builders: B;
+
+  private readonly _dispatcherEventMap: {
+    [K in keyof B]?: DispatcherFlyweight<StaticProps & DynamicProps, ReturnType<B[K]>>
+  } = {};
+
+  private _current: StateDispatcher<Partial<M>, StaticProps & DynamicProps, any> | null = null;
+  private _currentName: keyof B & string;
+  private _everRan = false;
+  private _running = false;
+  private _staticProps: StaticProps;
+  private _props: (DynamicProps & StaticProps) | null = null;
+  private readonly _initial: keyof B & string;
+
+  protected _parent: Parent<any, any> | null = null;
+
+  constructor(args: MachineArgs<M, B, StaticProps>) {
+    this._initial = this._currentName = args.initial;
+    this._staticProps = args.props;
+    this.builders = args.states;
   }
 
-  // This will return true after start has been called, until stop gets called
   running() {
     return this._running;
   }
 
-  // Returns the current state. Useful for calling state-specific methods beyond start/stop
-  current(): InstanceType<SCM[keyof SCM]> {
-    if(this._current === null) throw new Error("No current state: was the machine ever started?");
-    return this._current;
+  goto(next: keyof B & string) {
+    // Boilerplate safety
+    this._assertRunning();
+    if(next === this._currentName) return;
+    if(!this._props) throw new Error("Internal error: props are null");
+
+    // Manually dispatch and emit on the child! If you call your own dispatch on stop, it'll think
+    // the whole machine is stopping.
+    this._current?.dispatch("stop", this._dispatcherEventMap[this._currentName]);
+
+    this._currentName = next;
+    this._createAndStart(next, this._props);
   }
 
-  // Returns the event emitter for whatever the current state is (or the initial state, if the
-  // machine hasn't started yet). Mostly useful for tests.
-  currentEvents(): StateFlyweight<InstanceType<SCM[keyof SCM]>> {
-    return this.events(this._currentName);
+  current() {
+    return this._currentName;
   }
 
-  // Returns the event emitter for the named state. The emitter is technically a StateFlyweight,
-  // which allows you to call .child('machineName') to get an event register for the named
-  // child machine; for example:
-  // `machine.events('StateName').child('nestedChild').events('NestedState').on(...)`
-  events<Name extends keyof SCM>(name: Name): StateFlyweight<InstanceType<SCM[Name]>> {
-    const cachedState = this._events[name];
-    if(cachedState) return cachedState;
+  start(dynamicProps: DynamicProps) {
+    if(this._running) return;
 
-    const state = new StateFlyweight();
-    this._events[name] = state;
-    return state;
+    this._everRan = true;
+    this._running = true;
+
+    const props = this._props = {
+      ...this._staticProps,
+      ...dynamicProps,
+    };
+
+    this._createAndStart(this._initial, props);
   }
 
-  private _createAndStart<N extends keyof SCM>(name: N, props: MachinePropsFromStateClasses<SCM>) {
-    const stateClass = this.scm[name];
-    const current = new stateClass(this, props) as InstanceType<SCM[N]>;
-    this._current = current as InstanceType<SCM[keyof SCM]>;
+  stop() {
+    // This check is necessary for stop idempotence! Otherwise subsequent calls will explode when
+    // dispatch asserts that the machine is running.
+    if(!this._running) return;
+    this.dispatch("stop");
+  }
+
+  dispatch<Name extends keyof M>(
+    name: Name,
+    ...data: Name extends "stop" ? [] : Params<M[Name]>
+  ) {
+    // Boilerplate safety
+    this._assertRunning();
+    if(!this._current) throw new Error("Internal error: _current was never initialized");
+
+    this._current.dispatch(name, this._dispatcherEventMap[this._currentName], ...data);
+
+    // Special case handling for the stop event: we must track run state
+    if(name === "stop") this._running = false;
+  }
+
+  events<Name extends keyof B>(name: Name): DispatcherFlyweight<StaticProps & DynamicProps, ReturnType<B[Name]>> {
+    return upsert(this._dispatcherEventMap, name, () => {
+      return new DispatcherFlyweight();
+    });
+  }
+
+  currentEvents() {
+    return upsert(this._dispatcherEventMap, this._currentName, () => new DispatcherFlyweight());
+  }
+
+  private _createAndStart<N extends keyof B>(name: N & string, props: StaticProps & DynamicProps) {
+    const stateBuilder = this.builders[name];
+    const current = stateBuilder(this, props, this._parent as any);
+    this._current = current;
     this._currentName = name;
 
-    // Hydrate any newly-created machines from the corresponding flyweights
-    if(current.children) {
+    // Hydrate child machines
+    if(current.hasChildren) {
       for(const key in current.children) {
-        const machineMap = this.currentEvents()._machineMap as { [key: string]: MachineFlyweight<any> };
-        if(machineMap[key]) current.children[key].hydrate(machineMap[key]);
+        const child = current.children[key];
+        // Set their parent
+        child._parent = this._current;
+        child.start(props);
       }
     }
 
-    current._start(this.events(name));
+    const dispatcherEvent = this._dispatcherEventMap[name];
+    if(dispatcherEvent) dispatcherEvent.emit("start", props);
   }
 
-  private _stopCurrent() {
-    if(!this._current) throw new Error("Internal error: _current was never initialized");
-    // Stop and clear the old state
-    this._current._stop(this.events(this._currentName));
+  private _assertRunning() {
+    if(!this._everRan) throw new Error("State machine was never started");
+    if(!this._running) throw new Error("State machine is stopped");
   }
+}
+
+/*
+ * Machine building helpers
+ * =================================================================================================
+ *
+ * Machines are a PITA to manually construct, since they've got so many type params, and you have to
+ * manually keep track of which ones you're passing as static vs dynamic props. The following
+ * creates a convenient helper function that allows you to just define Messages and Props, like the
+ * states do, and automatically infers StaticProps vs DynamicProps based on what you pass into the
+ * constructor argument.
+ */
+
+type DefinedKeys<Some> = {
+  [K in keyof Some]-?: Some[K] extends undefined ? never : K;
+}[keyof Some];
+type Rest<Full, Some extends Partial<Full>> = Omit<Full, DefinedKeys<Some>>;
+
+type NoStaticPropsArgs<B extends BuilderMap<any>> = {
+  initial: keyof B & string,
+  states: B,
+};
+export class MachineBuilder<M extends BaseMessages, Props extends {}> {
+  build<B extends BuilderMap<M>>(args: NoStaticPropsArgs<B>): Machine<M, B, {}, Props>;
+  build<B extends BuilderMap<M>, StaticProps extends Partial<Props>>(
+    args: MachineArgs<M, B, StaticProps>
+  ): Machine<M, B, StaticProps, Rest<Props, StaticProps>>;
+  build(args: NoStaticPropsArgs<any> | MachineArgs<any, any, any>) {
+    if(hasStaticProps(args)) return new Machine(args);
+
+    return new Machine({
+      ...args,
+      props: {},
+    });
+  }
+}
+
+function hasStaticProps<N extends NoStaticPropsArgs<any>, M extends MachineArgs<any, any, any>>(
+  args: N | M
+): args is M {
+  return (args as MachineArgs<any, any, any>).props !== undefined;
+}
+
+export function machine<M extends BaseMessages = {}, Props extends {} = {}>(): MachineBuilder<M, Props> {
+  return new MachineBuilder();
 }
