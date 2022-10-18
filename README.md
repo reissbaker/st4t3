@@ -99,6 +99,11 @@ import { Land } from "./land";
 // Pass in the initial state name, as well as the state classes themselves:
 const machine = create.machine<Messages>().build({
   initial: "Land",
+
+  // Note that this is an object, not an array! Object shorthand syntax allows
+  // you to leave out the keys if the values are already named the same as the
+  // keys. We use the key names to help with typechecking, so that's why this
+  // must be written in object shorthand syntax rather than as an array
   states: {
     Jump, Land
   }
