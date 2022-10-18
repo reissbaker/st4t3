@@ -574,9 +574,12 @@ machine.start({});
 
 # Type safety
 
-* When you create a new `Machine` instance, it checks for exhaustiveness at
-  compile time: you can't accidentally forget to include a state that one of
-  your other states needs to transition to.
+* When you create a `machine`, it checks for exhaustiveness at compile
+  time: you can't accidentally forget to include a state that one of your other
+  states needs to transition to.
+* When you create a `machine`, it also checks to make sure the `Props` type
+  you've given it matches the props expected by the states. If a state requires
+  a property, you can't accidentally forget to include it in the machine props.
 * A state can only transition to the states it names in its class definition.
   As a result, you have to use string literals &mdash; the compiler can't
   analyze dynamic strings passed in at runtime. That being said, this
