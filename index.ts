@@ -51,14 +51,25 @@ class DispatchBuilder<
   Props extends {} = {},
   ParentMessages extends BaseMessages | null = null
 > {
+  build(): DispatchBuildFn<never, {}, {}, StateDispatcher<{}, {}, never>, null>;
   build<Dispatcher extends StateDispatcher<M, Props, any>>(
     curryBuildFn: (
       builder: StateBuilder<Next, M, Props>,
       parent: Parent<NonNullable<ParentMessages>, any>
     ) => Dispatcher
-  ): DispatchBuildFn<Next, M, Props, Dispatcher, ParentMessages> {
-    return (machine, props, parent) => {
-      return curryBuildFn(new StateBuilder<Next, M, Props>(machine, props), parent);
+  ): DispatchBuildFn<Next, M, Props, Dispatcher, ParentMessages>;
+
+  build<Dispatcher extends StateDispatcher<M, Props, any>>(
+    curryBuildFn?: (
+      builder: StateBuilder<Next, M, Props>,
+      parent: Parent<NonNullable<ParentMessages>, any>
+    ) => Dispatcher
+  ) {
+    return (machine: any, props: any, parent: any) => {
+      if(curryBuildFn) {
+        return curryBuildFn(new StateBuilder<Next, M, Props>(machine, props), parent);
+      }
+      return new StateBuilder(machine, props);
     };
   }
 }

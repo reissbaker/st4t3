@@ -242,6 +242,31 @@ describe("State Machines", () => {
   });
 });
 
+describe("State machine ultra shorthand syntax", () => {
+  const Final = create.transition().build();
+  function machine() {
+    return create.machine().build({
+      initial: "Final",
+      states: { Final },
+    });
+  }
+  type MachineType = ReturnType<typeof machine>;
+
+  type Should = {
+    machine: MachineType,
+  };
+
+  beforeEach<Should>(ctx => {
+    ctx.machine = machine();
+  });
+
+  it<Should>("create the state", ({ machine }) => {
+    const spy = machine.events('Final').on('start', vi.fn());
+    machine.start({});
+    expect(spy).toHaveBeenCalledOnce();
+  });
+});
+
 describe("State machines with messages that take arguments", () => {
   type Messages = {
     wake(): void,
