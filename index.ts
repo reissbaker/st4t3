@@ -209,15 +209,17 @@ type BuilderMap<M extends BaseMessages, AllTransitions extends string> = {
 // map is exhaustive; that is, you could have asked for transitions to states that don't exist in
 // the map.
 type NextStateOf<T> = T extends StateFunction<infer Next, any, any, any, any> ? Next : never;
-// Grab the state transition names from the builder map
+export type BuilderMapOf<M> = M extends Machine<any, infer BM, any, any> ? BM : never;
+// Grab the state transition names from the builder map. This returns whatever transitions are in
+// the keys; it doesn't yet tell you which transitions are asked for
 export type TransitionNamesOf<M> = M extends BuilderMap<any, infer T> ? T : never;
+// Get exactly the list of transitions requested from the builder map
 export type LoadPreciseTransitions<BM extends BuilderMap<any, any>> = NextStateOf<
   BM[TransitionNamesOf<BM>]
 >;
 export type FullySpecifiedBuilderMap<BM extends BuilderMap<any, any>> = {
   [K in LoadPreciseTransitions<BM>]: StateFunction<any, any, any, any, any>;
 }
-export type BuilderMapOf<M> = M extends Machine<any, infer BM, any, any> ? BM : never;
 
 type MachineArgs<
   M extends BaseMessages,
