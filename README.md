@@ -517,7 +517,7 @@ const machine = create.machine<Messages, Props>().build({
 // Land is allocated here:
 machine.start({});
 // The Land instance is overwritten by a new Jump allocation here:
-machine.transitionTo("Jump");
+machine.goto("Jump");
 ```
 
 All callbacks registered through the `.events` API are kept in memory for the
