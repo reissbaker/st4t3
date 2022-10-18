@@ -594,6 +594,10 @@ const DoubleJump = create.transition<
 });
 ```
 
+Dispatching to a parent is equivalent to dispatching to the parent's machine;
+the parent will get the message, and it will be forwarded to all children as
+well.
+
 # Type safety
 
 * When you create a `machine`, it checks for exhaustiveness at compile
