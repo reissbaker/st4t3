@@ -42,7 +42,7 @@ type BuildArgs<M extends BaseMessages, Props extends {}, C extends Children<Prop
 };
 
 type Children<Props extends {}> = {
-  [key: string]: Machine<any, any, any, Partial<Props>>,
+  [key: string]: Machine<any, any, any, Props>,
 };
 
 class DispatchBuilder<
@@ -157,17 +157,9 @@ export type StateEvents<Props extends {}> = {
 };
 
 export class MachineFlyweight<Props extends {}, M extends Machine<any, any, any, any>> {
-  private readonly dispatchers: {
+  readonly dispatchers: {
     [K in M["builders"]]?: DispatcherFlyweight<Props, ReturnType<M["builders"][K]>>;
   } = {};
-
-  _emit<Name extends keyof StateEvents<Props>>(name: Name, data: StateEvents<Props>[Name]) {
-    for(const k in this.dispatchers) {
-      const key: keyof M["builders"] = k;
-      const child = this.dispatchers[key];
-      if(child) child.emit(name, data);
-    }
-  }
 
   events<Name extends keyof M["builders"]>(name: Name): DispatcherFlyweight<Props, ReturnType<M["builders"][Name]>> {
     return upsert(this.dispatchers, name, () => new DispatcherFlyweight());
@@ -183,13 +175,6 @@ export class DispatcherFlyweight<
     [K in keyof GetChildren<Dispatcher>]?: MachineFlyweight<Props, GetChildren<Dispatcher>[K]>;
   } = {};
 
-  override emit<Name extends keyof StateEvents<Props>>(name: Name, data: StateEvents<Props>[Name]) {
-    for(const key in this.children) {
-      const child = this.children[key];
-      if(child) child._emit(name, data);
-    }
-    super.emit(name, data);
-  }
 
   child<Name extends keyof GetChildren<Dispatcher>>(name: Name) {
     return upsert(this.children, name, () => new MachineFlyweight());
@@ -334,23 +319,40 @@ export class Machine<
     return upsert(this._dispatcherEventMap, this._currentName, () => new DispatcherFlyweight());
   }
 
+  protected _hydrate(
+    parent: Parent<any, any>,
+    events: MachineFlyweight<StaticProps & DynamicProps, any> | undefined
+  ) {
+    this._parent = parent;
+    if(events) {
+      for(const k in events.dispatchers) {
+        const key = k as keyof (typeof events.dispatchers);
+        const dispatcherFly = events.dispatchers[key];
+        if(dispatcherFly) {
+          this._dispatcherEventMap[key as keyof B] = dispatcherFly;
+        }
+      }
+    }
+  }
+
   private _createAndStart<N extends keyof B>(name: N & string, props: StaticProps & DynamicProps) {
     const stateBuilder = this.builders[name];
     const current = stateBuilder(this, props, this._parent as any);
     this._current = current;
     this._currentName = name;
+    const dispatcherEvent = this._dispatcherEventMap[name];
 
     // Hydrate child machines
     if(current.hasChildren) {
+      const parent = new Parent(current);
       for(const key in current.children) {
         const child = current.children[key];
-        // Set their parent
-        child._parent = this._current;
+        const events = dispatcherEvent ? dispatcherEvent.children[key] : undefined;
+        child._hydrate(parent, events);
         child.start(props);
       }
     }
 
-    const dispatcherEvent = this._dispatcherEventMap[name];
     if(dispatcherEvent) dispatcherEvent.emit("start", props);
   }
 

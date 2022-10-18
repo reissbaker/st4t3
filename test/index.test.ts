@@ -698,4 +698,48 @@ describe("Child states", () => {
     machine.dispatch("next");
     expect(mock).toHaveBeenCalledOnce();
   });
+
+  it<Should>("allow child machines to have extra props as long as they're static", () => {
+    type Props = {
+      msg: string,
+    };
+    type InnerProps = Props & {
+      print: boolean,
+    };
+
+    const Inner = create.transition<never, {}, InnerProps>().build(state => state.build({
+      messages: {}
+    }));
+
+    const Outer = create.transition<never, {}, Props>().build(state => state.build({
+      children: {
+        inner: create.machine<{}, InnerProps>().build({
+          initial: 'Inner',
+          states: { Inner },
+          props: {
+            print: true,
+          },
+        }),
+      },
+      messages: {}
+    }));
+
+    const machine = create.machine<{}, Props>().build({
+      initial: 'Outer',
+      states: { Outer },
+    });
+
+    const spy = machine.events('Outer').child('inner').events('Inner').on('start', vi.fn(props => {
+      expect(props).toStrictEqual({
+        msg: "hello",
+        print: true,
+      });
+    }));
+
+    machine.start({
+      msg: "hello",
+    });
+
+    expect(spy).toHaveBeenCalledOnce();
+  });
 });
