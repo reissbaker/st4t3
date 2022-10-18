@@ -771,12 +771,22 @@ testType(() => {
 
 testType(() => {
   // It should throw an error if a state requests a property not offered by the machine
-  const Final = create.transition<never, never, { msg: string }>().build(state => state.build());
-  const huh = create.machine().build({
+  const Final = create.transition<never, never, { b: string, a: string }>().build(state => state.build());
+
+  // Try without static props
+  create.machine().build({
     initial: 'Final',
+    // @ts-expect-error
     states: { Final },
   });
 
-  // @ts-expect-error
-  huh.start({});
+  // Try with static props
+  create.machine().build({
+    initial: 'Final',
+    // @ts-expect-error
+    states: { Final },
+    props: {
+      a: '',
+    }
+  });
 });
