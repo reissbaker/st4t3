@@ -59,7 +59,8 @@ export const Jump = create.transition<"Land", Pick<Messages, "land">>().build(st
       },
       land() {
         // Since you declared you can transition to the "Land" state, you can call
-        // that here.
+        // that here. The TypeScript compiler ensures you can only `goto`
+        // states you've defined in the `transition` function above
         state.goto("Land");
       },
     },
