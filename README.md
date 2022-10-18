@@ -76,7 +76,7 @@ import { Messages } from "./messages";
 export const Land = create.transition<"Jump", Pick<Messages, "jump">>().build(state => {
   console.log("landed");
 
-  return statee.build({
+  return state.build({
     messages: {
       jump() {
         state.goto("Jump");
