@@ -29,8 +29,8 @@ export class StateBuilder<
     return new StateDispatcher({ messages: {} }, this.props);
   }
 
-  goto(next: Next & string) {
-    this.machine.goto(next);
+  goto(next: Next, updateProps?: Partial<Props>) {
+    this.machine.goto(next, updateProps);
   }
 }
 
@@ -256,11 +256,20 @@ export class Machine<
     return this._running;
   }
 
-  goto(next: keyof B & string) {
+  goto(next: keyof B & string, updateProps?: Partial<StaticProps & DynamicProps>) {
     // Boilerplate safety
     this._assertRunning();
     if(next === this._currentName) return;
     if(!this._props) throw new Error("Internal error: props are null");
+
+    // Update props, if new ones were passed in
+    if(updateProps !== undefined) {
+      for(const k in updateProps) {
+        // Dumb typecheck workarounds
+        const key = k as keyof (StaticProps & DynamicProps);
+        this._props[key] = updateProps[key] as any;
+      }
+    }
 
     // Manually dispatch and emit on the child! If you call your own dispatch on stop, it'll think
     // the whole machine is stopping.

@@ -289,6 +289,7 @@ describe("State machines with props", () => {
   type Messages = {
     jump(): void,
     land(): void,
+    jumpUpdateDouble(allowed: boolean): void,
   };
   type Props = {
     allowDoubleJumps: boolean,
@@ -302,6 +303,7 @@ describe("State machines with props", () => {
     return state.build({
       messages: {
         jump() {},
+        jumpUpdateDouble() {},
         land() {
           state.goto('Land');
         },
@@ -309,12 +311,15 @@ describe("State machines with props", () => {
     });
   });
 
-  const Land = create.transition<'Jump', Messages, Pick<Props, 'bounceOnLand'>>().build((state) => {
+  const Land = create.transition<'Jump', Messages, Props>().build((state) => {
     return state.build({
       messages: {
         land() {},
         jump() {
           state.goto('Jump');
+        },
+        jumpUpdateDouble(allowDoubleJumps) {
+          state.goto('Jump', { allowDoubleJumps });
         },
       },
     });
@@ -380,6 +385,30 @@ describe("State machines with props", () => {
     machine.stop();
     machine.start(nextJumpProps);
     expect(secondStart).toHaveBeenCalledOnce();
+  });
+
+  it<Should>("allow the props to be updated via goto", ({ machine }) => {
+    const spy = vi.fn((props: Props) => {
+      expect(props).toStrictEqual({
+        allowDoubleJumps: false,
+        bounceOnLand: true,
+      });
+    });
+    machine.events('Land').on("start", spy);
+    machine.start({
+      allowDoubleJumps: false,
+      bounceOnLand: true,
+    });
+    expect(spy).toHaveBeenCalledOnce();
+
+    const jumpSpy = machine.events('Jump').on('start', (props) => {
+      expect(props).toStrictEqual({
+        allowDoubleJumps: true,
+        bounceOnLand: true,
+      });
+    });
+    machine.dispatch("jumpUpdateDouble", true);
+    expect(jumpSpy).toHaveBeenCalledOnce();
   });
 });
 
