@@ -31,12 +31,3 @@ not extra DynamicProps); but it's not ok to have incompatible DynamicProps.
 Really you probably need to track the DynamicProps of child StateBuilders. Or
 rather, you need to track the DynamicProps of StateDispatchers with children.
 (You don't know the Children type at StateBuilder time).
-
-While props are now typesafe, there is a confusing edge case: if you specify
-that the machine props are one set of props, but you leave one property
-requested by a state out... Rather than throwing an error, it will auto-infer
-the one you left out, and insist you pass it into the `start` call. While this
-is useful to make sure your program runs, it's not great for self-documenting
-code, since it appears you're making a machine of one type, but in fact are
-making a machine of an expanded type. You should figure out a way to cause a
-type error in that case, rather than just expanding the type.
