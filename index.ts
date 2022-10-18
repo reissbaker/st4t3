@@ -164,7 +164,9 @@ export class MachineFlyweight<Props extends {}, M extends Machine<any, any, any,
     [K in M["builders"]]?: DispatcherFlyweight<Props, ReturnType<M["builders"][K]>>;
   } = {};
 
-  events<Name extends keyof M["builders"]>(name: Name): DispatcherFlyweight<Props, ReturnType<M["builders"][Name]>> {
+  events<Name extends keyof M["builders"]>(
+    name: Name
+  ): DispatcherFlyweight<Props, ReturnType<M["builders"][Name]>> {
     return upsert(this.dispatchers, name, () => new DispatcherFlyweight());
   }
 }
@@ -332,7 +334,9 @@ export class Machine<
     if(name === "stop") this._running = false;
   }
 
-  events<Name extends keyof B>(name: Name): DispatcherFlyweight<StaticProps & DynamicProps, ReturnType<B[Name]>> {
+  events<Name extends keyof B>(
+    name: Name
+  ): DispatcherFlyweight<StaticProps & DynamicProps, ReturnType<B[Name]>> {
     return upsert(this._dispatcherEventMap, name, () => {
       return new DispatcherFlyweight();
     });
@@ -405,11 +409,24 @@ type NoStaticPropsArgs<B extends BuilderMap<any, any, any>> = {
   initial: keyof B & string,
   states: B & FullySpecifiedBuilderMap<B>,
 };
+
 export class MachineBuilder<M extends BaseMessages, Props extends {}> {
-  build<B extends BuilderMap<M, any, any>>(args: NoStaticPropsArgs<B>): Machine<M, B, {}, Rest<PropsOf<B>, {}> & Props>;
-  build<B extends BuilderMap<M, any, any>, StaticProps extends Partial<Props> & Partial<PropsOf<B>>>(
-    args: MachineArgs<M, StaticProps, Rest<PropsOf<B>, StaticProps> & Rest<Props, StaticProps>, B>
+  build<B extends BuilderMap<M, any, any>>(
+    args: NoStaticPropsArgs<B>
+  ): Machine<M, B, {}, Rest<PropsOf<B>, {}> & Props>;
+
+  build<
+    B extends BuilderMap<M, any, any>,
+    StaticProps extends Partial<Props> & Partial<PropsOf<B>>
+  >(
+    args: MachineArgs<
+      M,
+      StaticProps,
+      Rest<PropsOf<B>, StaticProps> & Rest<Props, StaticProps>,
+      B
+    >
   ): Machine<M, B, StaticProps, Rest<PropsOf<B>, StaticProps> & Rest<Props, StaticProps>>;
+
   build(args: NoStaticPropsArgs<any> | MachineArgs<any, any, any, any>) {
     if(hasStaticProps(args)) return new Machine(args);
 
@@ -420,12 +437,16 @@ export class MachineBuilder<M extends BaseMessages, Props extends {}> {
   }
 }
 
-function hasStaticProps<N extends NoStaticPropsArgs<any>, M extends MachineArgs<any, any, any, any>>(
-  args: N | M
-): args is M {
+function hasStaticProps<
+  N extends NoStaticPropsArgs<any>,
+  M extends MachineArgs<any, any, any, any>
+>(args: N | M): args is M {
   return (args as MachineArgs<any, any, any, any>).props !== undefined;
 }
 
-export function machine<M extends BaseMessages = {}, Props extends {} = {}>(): MachineBuilder<M, Props> {
+export function machine<
+  M extends BaseMessages = {},
+  Props extends {} = {}
+>(): MachineBuilder<M, Props> {
   return new MachineBuilder();
 }
