@@ -625,11 +625,12 @@ well.
   responds to all of the messages the child states have requested to be able to
   send to the parent. You can't create children that will dispatch events to
   you that you don't know about.
-* That being said, children are allowed to have events you don't know about;
-  they might use those events to privately communicate to their own children,
-  for example. Similarly, your parent is allowed to have events you don't know
-  about. The only assertion is that if a child declares it will send *you* a
-  message, you must be aware of that message.
+* That being said, children are allowed to have their own events you don't know
+  about, as long as they aren't dispatching them back to you; they might use
+  those events to privately communicate to their own children, for example.
+  Similarly, your parent is allowed to have events you don't know about. The
+  only assertion is that if a child declares it will send *you* a message, you
+  must be aware of that message.
 * A state can only transition to the states it names in its class definition.
   As a result, you have to use string literals &mdash; the compiler can't
   analyze dynamic strings passed in at runtime. That being said, this
