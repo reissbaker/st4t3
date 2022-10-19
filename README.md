@@ -14,6 +14,7 @@ file to get full type safety. There are no runtime dependencies and the code is
 * [Nested state machines](#nested-state-machines)
 * [Type safety](#type-safety)
 * [Performance](#performance)
+* [Comparison to alternatives](#comparison-to-alternatives)
 
 # Development
 
@@ -697,3 +698,57 @@ lots of transitions inside tight loops.
 Unlike some other libraries, there's no special registry of machines: this
 means you don't need to worry about machine memory leaks, since they get garbage
 collected like every other JS object.
+
+# Comparison to alternatives
+
+### XState
+
+XState is the 800lb gorilla in the room of JS/TS state machine libraries.
+Although XState and st4t3 have similar goals in terms of making stateful code
+more understandable and reducing explicit branching, they implement different
+programming models: XState allows modeling finite state machines and
+statecharts, whereas st4t3 is similar to a "transition system" (also called an
+"infinite state machine"). Finite state machines have lexical power equivalent
+to a regex; I'm not familiar with formalized lexical power of statecharts, but
+since they're largely just hierarchical finite state machines, they in practice
+don't seem to be particularly more expressive &mdash; although allowing
+hierarchical machines is at least much more convenient than flat ones. On the
+other hand, st4t3 is Turing-complete.
+
+For states that can be modeled by a finite state machine, XState allows
+excellent tooling; it provides, for example, visualizations of every state in
+the system, the inputs, and the state transitions caused by any input. However,
+for complex systems, you may need to model many, many states and/or inputs, and
+in some cases it may not be possible to model your domain in XState. If you
+can't [parse it with a
+regex](https://stackoverflow.com/questions/1732348/regex-match-open-tags-except-xhtml-self-contained-tags),
+you can't model it with a finite state machine, and modeling it with a
+statechart will either be difficult or perhaps impossible.
+
+On the other hand, since st4t3 is Turing-complete, tooling is by definition
+more limited, since making strong guarantees about whether certain code will
+run or halt given various inputs is NP-complete. However, you'll be able to
+model just about anything a programming language can represent, and it will
+often be more concise than doing so in XState. Because XState doesn't use
+ordinary TypeScript to determine things like whether or not an input should
+result in a state transition, it needs to invent its own sub-language for e.g.
+branching, using a variety of "guard" types expressed as JSON instead of an `if`
+statement.
+
+XState is also much larger and more complex than st4t3; the "minimal" XState
+implementation &mdash; which is missing many features &mdash; is more than
+double the size of st4t3; meanwhile, the "core" implementation (the
+feature-complete version, but without counting any of the external tooling) is
+roughly 16x the code count. It's hefty.
+
+### TS-FSM
+
+TSM-FSM is a lovely little finite state machine library whose `Events` system
+inspired st4t3's message dispatch system. It's extremely small, and if you know
+you want a finite state machine, it looks like a nice one.
+
+The same lexical power caveats apply, but even more strongly, since TS-FSM is
+strictly capable of modeling finite state machines and not statecharts. If you
+can't parse it with a regex, you can't model it with TS-FSM; and for complex
+state graphs it will become increasingly cumbersome, since it doesn't support
+nested state machines.
