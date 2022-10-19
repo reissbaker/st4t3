@@ -447,7 +447,10 @@ export class MachineBuilder<
     args: MachineArgs<M, StaticProps, B>
   ): Machine<M, B, StaticProps, Rest<Props, StaticProps>, ParentType>;
 
-  build(args: NoStaticPropsArgs<any> | MachineArgs<any, any, any>) {
+  build<
+    B extends BuilderMap<M, any, Props, ParentType>,
+    StaticProps extends Partial<Props>
+  >(args: NoStaticPropsArgs<B> | MachineArgs<M, StaticProps, B>) {
     if(hasStaticProps(args)) return new Machine(args);
 
     return new Machine({
