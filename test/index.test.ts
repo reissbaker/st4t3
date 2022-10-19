@@ -523,7 +523,7 @@ describe("Child states", () => {
 
   const ParentJump = create.transition<'Land', Messages>().build(s => s.build({
     children: {
-      jumpState: create.machine<Messages>().build({
+      jumpState: s.child<Messages>().build({
         initial: 'FirstJump',
         states: { FirstJump, DoubleJump },
       }),
@@ -541,7 +541,7 @@ describe("Child states", () => {
 
   const Land = create.transition<'ParentJump', Messages>().build(s => s.build({
     children: {
-      landState: create.machine().build({
+      landState: s.child().build({
         initial: 'JustLanded',
         states: { JustLanded, Still },
       }),
@@ -610,7 +610,7 @@ describe("Child states", () => {
 
     const Inner = create.transition().build(s => s.build({
       children: {
-        child: create.machine().build({
+        child: s.child().build({
           initial: "MostInner",
           states: { MostInner },
         }),
@@ -620,7 +620,7 @@ describe("Child states", () => {
 
     const Outer = create.transition().build(s => s.build({
       children: {
-        child: create.machine().build({
+        child: s.child().build({
           initial: "Inner",
           states: { Inner },
         }),
@@ -630,7 +630,7 @@ describe("Child states", () => {
 
     const MostOuter = create.transition().build(s => s.build({
       children: {
-        child: create.machine().build({
+        child: s.child().build({
           initial: "Outer",
           states: { Outer },
         }),
@@ -682,7 +682,7 @@ describe("Child states", () => {
     const Inner = create.transition<never, HiddenParentMessages, Props, TopLevelMessages>().build(
       (state, parent) => state.build({
         children: {
-          mostInner: create.machine<Messages, Props>().build({
+          mostInner: state.child<Messages, Props>().build({
             initial: "MostInner",
             states: { MostInner },
           }),
@@ -697,7 +697,7 @@ describe("Child states", () => {
     const First = create.transition<"Second", Messages & TopLevelMessages, Props>().build(
       state => state.build({
         children: {
-          inner: create.machine<Messages & HiddenParentMessages, Props>().build({
+          inner: state.child<Messages & HiddenParentMessages, Props>().build({
             initial: "Inner",
             states: { Inner },
           }),
@@ -739,7 +739,7 @@ describe("Child states", () => {
 
     const Outer = create.transition<never, {}, Props>().build(state => state.build({
       children: {
-        inner: create.machine<{}, InnerProps>().build({
+        inner: state.child<{}, InnerProps>().build({
           initial: 'Inner',
           states: { Inner },
           props: {
@@ -816,4 +816,19 @@ testType(() => {
       a: '',
     }
   });
+});
+
+testType(() => {
+  // It should throw an error if the child machine is constructed with the wrong parent type
+  const Inner = create.transition().build();
+  create.transition().build(state => state.build({
+    children: {
+      // @ts-expect-error
+      inner: create.machine().build({
+        initial: "Inner",
+        states: { Inner },
+      }),
+    },
+    messages: {},
+  }));
 });

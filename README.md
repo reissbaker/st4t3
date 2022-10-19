@@ -435,7 +435,15 @@ state machines, using the `children` property. State machines nested
 inside states will automatically be started when the parent state starts, and
 stopped when the parent stops, and will have the parent's props passed to it at
 start time. All messages dispatched to the parent will also be forwarded to the
-child. For example:
+child.
+
+Child state machines are created with `state.child<Messages, Props>()` rather
+than `create.machine<Messages, Props>()`, in order to track type information
+about parent states. The type system enforces that you create the child state
+machines this way; it's impossible to accidentally forget and use the top-level
+machine builder instead of `state.child`.
+
+For example:
 
 ```typescript
 import * as create from "st4t3";
@@ -465,7 +473,7 @@ const DoubleJump = create.transition().build(state => {
 const Jump = create.transition<"Land", Pick<Messages, "land">>().build(state => {
   return state.build({
     children: {
-      jumpMachine: create.machine<Messages>().build({
+      jumpMachine: state.child<Messages>().build({
         initial: "InitialJump",
         states: { InitialJump, DoubleJump },
       }),
@@ -533,7 +541,7 @@ const MostInner = create.transition().build(s => s.build());
 
 const Inner = create.transition().build(s => s.build({
   children: {
-    child: create.machine().build({
+    child: s.child().build({
       initial: "MostInner",
       states: { MostInner },
     }),
@@ -543,7 +551,7 @@ const Inner = create.transition().build(s => s.build({
 
 const Outer = create.transition().build(s => s.build({
   children: {
-    child: create.machine().build({
+    child: s.child().build({
       initial: "Inner",
       states: { Inner },
     }),
@@ -553,7 +561,7 @@ const Outer = create.transition().build(s => s.build({
 
 const MostOuter = create.transition().build(s => s.build({
   children: {
-    child: create.machine().build({
+    child: s.child().build({
       initial: "Outer",
       states: { Outer },
     }),

@@ -18,13 +18,13 @@ export class StateBuilder<
   Props extends {},
 > {
   constructor(
-    private readonly machine: Machine<Partial<M>, any, any, any>,
+    private readonly machine: Machine<Partial<M>, any, any, any, any>,
     readonly props: Props
   ) {}
 
-  build<C extends Children<Props>>(args: BuildArgs<M, Props, C>): StateDispatcher<M, Props, C>;
+  build<C extends Children<Props, M>>(args: BuildArgs<M, Props, C>): StateDispatcher<M, Props, C>;
   build(): StateDispatcher<M, Props, {}>;
-  build<C extends Children<Props>>(args?: BuildArgs<M, Props, C>) {
+  build<C extends Children<Props, M>>(args?: BuildArgs<M, Props, C>) {
     if(args) return new StateDispatcher(args, this.props);
     return new StateDispatcher({ messages: {} }, this.props);
   }
@@ -34,15 +34,19 @@ export class StateBuilder<
     // transitioning to yourself is to re-run initialization code
     this.machine.force(next, updateProps);
   }
+
+  child<ChildM extends BaseMessages = {}, ChildProps extends {} = {}>(): MachineBuilder<ChildM, ChildProps, Parent<M>> {
+    return new MachineBuilder();
+  }
 }
 
-type BuildArgs<M extends BaseMessages, Props extends {}, C extends Children<Props>> = {
+type BuildArgs<M extends BaseMessages, Props extends {}, C extends Children<Props, M>> = {
   children?: C,
   messages: M,
 };
 
-type Children<Props extends {}> = {
-  [key: string]: Machine<any, any, any, Props>,
+type Children<Props extends {}, ParentMessages extends BaseMessages> = {
+  [key: string]: Machine<any, any, any, Props, Parent<ParentMessages>>,
 };
 
 class DispatchBuilder<
@@ -55,14 +59,14 @@ class DispatchBuilder<
   build<Dispatcher extends StateDispatcher<M, Props, any>>(
     curryBuildFn: (
       builder: StateBuilder<Next, M, Props>,
-      parent: Parent<NonNullable<ParentMessages>, any>
+      parent: Parent<NonNullable<ParentMessages>>
     ) => Dispatcher
   ): DispatchBuildFn<Next, M, Props, Dispatcher, ParentMessages>;
 
   build<Dispatcher extends StateDispatcher<M, Props, any>>(
     curryBuildFn?: (
       builder: StateBuilder<Next, M, Props>,
-      parent: Parent<NonNullable<ParentMessages>, any>
+      parent: Parent<NonNullable<ParentMessages>>
     ) => Dispatcher
   ) {
     return (machine: any, props: any, parent: any) => {
@@ -89,16 +93,13 @@ type DispatchBuildFn<
   Dispatcher extends StateDispatcher<M, Props, any>,
   ParentMessages extends BaseMessages | null,
 > = (
-  machine: Machine<M, any, any, any>,
+  machine: Machine<M, any, any, any, any>,
   props: Props,
-  parent: Parent<NonNullable<ParentMessages>, any>
+  parent: Parent<NonNullable<ParentMessages>>
 ) => Dispatcher;
 
-export class Parent<
-  M extends BaseMessages,
-  Dispatcher extends StateDispatcher<M, any, any>
-> {
-  constructor(private readonly dispatcher: Dispatcher) {}
+export class Parent<M extends BaseMessages> {
+  constructor(private readonly dispatcher: StateDispatcher<M, any, any>) {}
 
   // Allows dispatching any message except the system-reserved "stop" message
   dispatch<Name extends Exclude<keyof M, "stop">>(
@@ -117,9 +118,9 @@ export class Parent<
  * =================================================================================================
  */
 
-export class StateDispatcher<M extends BaseMessages, P extends {}, C extends Children<P>> {
+export class StateDispatcher<M extends BaseMessages, P extends {}, C extends Children<P, M>> {
   readonly hasChildren: boolean; // dumb micro optimization for cpu branch predictor
-  readonly children: Children<P>;
+  readonly children: Children<P, M>;
 
   constructor(
     private readonly args: BuildArgs<M, P, C>,
@@ -170,7 +171,7 @@ export type StateEvents<Props extends {}> = {
   stop: Props,
 };
 
-export class MachineFlyweight<Props extends {}, M extends Machine<any, any, any, any>> {
+export class MachineFlyweight<Props extends {}, M extends Machine<any, any, any, any, any>> {
   readonly dispatchers: {
     [K in M["builders"]]?: DispatcherFlyweight<Props, ReturnType<M["builders"][K]>>;
   } = {};
@@ -222,7 +223,7 @@ type BuilderMap<M extends BaseMessages, AllTransitions extends string, Props ext
 // map is exhaustive; that is, you could have asked for transitions to states that don't exist in
 // the map.
 type NextStateOf<T> = T extends DispatchBuildFn<infer Next, any, any, any, any> ? Next : never;
-export type BuilderMapOf<M> = M extends Machine<any, infer BM, any, any> ? BM : never;
+export type BuilderMapOf<M> = M extends Machine<any, infer BM, any, any, any> ? BM : never;
 // Grab the state transition names from the builder map. This returns whatever transitions are in
 // the keys; it doesn't yet tell you which transitions are asked for
 export type TransitionNamesOf<M> = M extends BuilderMap<any, infer T, any> ? T : never;
@@ -248,7 +249,8 @@ export class Machine<
   M extends BaseMessages,
   B extends BuilderMap<M, any, any>,
   StaticProps extends {},
-  DynamicProps extends {}
+  DynamicProps extends {},
+  ParentType extends Parent<any> | null
 > {
   readonly builders: B;
 
@@ -264,7 +266,7 @@ export class Machine<
   private _props: (DynamicProps & StaticProps) | null = null;
   private readonly _initial: keyof B & string;
 
-  protected _parent: Parent<any, any> | null = null;
+  protected _parent: ParentType | null = null;
 
   constructor(args: MachineArgs<M, StaticProps, B>) {
     this._initial = this._currentName = args.initial;
@@ -355,7 +357,7 @@ export class Machine<
   }
 
   protected _hydrate(
-    parent: Parent<any, any>,
+    parent: ParentType,
     events: MachineFlyweight<StaticProps & DynamicProps, any> | undefined
   ) {
     this._parent = parent;
@@ -418,17 +420,21 @@ type NoStaticPropsArgs<B extends BuilderMap<any, any, any>> = {
   states: B & FullySpecifiedBuilderMap<B>
 };
 
-export class MachineBuilder<M extends BaseMessages, Props extends {}> {
+export class MachineBuilder<
+  M extends BaseMessages,
+  Props extends {},
+  ParentType extends Parent<any> | null
+> {
   build<B extends BuilderMap<M, any, Props>>(
     args: NoStaticPropsArgs<B>
-  ): Machine<M, B, {}, Props>;
+  ): Machine<M, B, {}, Props, ParentType>;
 
   build<
     B extends BuilderMap<M, any, Props>,
     StaticProps extends Partial<Props>
   >(
     args: MachineArgs<M, StaticProps, B>
-  ): Machine<M, B, StaticProps, Rest<Props, StaticProps>>;
+  ): Machine<M, B, StaticProps, Rest<Props, StaticProps>, ParentType>;
 
   build(args: NoStaticPropsArgs<any> | MachineArgs<any, any, any>) {
     if(hasStaticProps(args)) return new Machine(args);
@@ -450,6 +456,6 @@ function hasStaticProps<
 export function machine<
   M extends BaseMessages = {},
   Props extends {} = {}
->(): MachineBuilder<M, Props> {
+>(): MachineBuilder<M, Props, null> {
   return new MachineBuilder();
 }
