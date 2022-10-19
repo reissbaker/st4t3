@@ -832,3 +832,92 @@ testType(() => {
     messages: {},
   }));
 });
+
+testType(() => {
+  // It should throw an error if the child machine is constructed with mismatched argument types
+  type ParentMessages = {
+    next(a: string): void,
+  };
+  const Inner = create.transition<never, {}, {}, ParentMessages>().build();
+
+  create.transition<never, { next(a: number): void }>().build(state => {
+    return state.build({
+      children: {
+        inner: state.child().build({
+          initial: "Inner",
+          // @ts-expect-error
+          states: { Inner },
+        }),
+      },
+      messages: {
+        next(_: number) {
+        }
+      },
+    })
+  });
+});
+
+testType(() => {
+  // It should throw an error if the child machine is constructed with messages that don't exist
+  type ParentMessages = {
+    next(a: string): void,
+  };
+  const Inner = create.transition<never, {}, {}, ParentMessages>().build();
+
+  create.transition<never>().build(state => {
+    return state.build({
+      children: {
+        inner: state.child().build({
+          initial: "Inner",
+          // @ts-expect-error
+          states: { Inner },
+        }),
+      },
+      messages: {},
+    })
+  });
+});
+
+testType(() => {
+  // It should be fine to construct a parent type with messages, and have the child ignore them
+  const Inner = create.transition().build();
+
+  type ParentMessages = {
+    next(a: string): void,
+  };
+  create.transition<never, ParentMessages>().build(state => state.build({
+    children: {
+      inner: state.child().build({
+        initial: "Inner",
+        states: { Inner },
+      }),
+    },
+    messages: {
+      next() {}
+    },
+  }));
+});
+
+testType(() => {
+  // It should be fine to construct a child type with messages, and have the parent ignore them
+  type ChildMessages = {
+    next(a: string): void,
+  };
+  const Inner = create.transition<never, ChildMessages>().build(state => state.build({
+    messages: {
+      next() {},
+    }
+  }));
+
+  create.transition().build(state => state.build({
+    children: {
+      inner: state.child().build({
+        initial: "Inner",
+        states: { Inner },
+      }),
+    },
+    messages: {
+      next() {}
+    },
+  }));
+});

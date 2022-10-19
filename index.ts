@@ -53,9 +53,9 @@ class DispatchBuilder<
   Next extends string,
   M extends BaseMessages = {},
   Props extends {} = {},
-  ParentMessages extends BaseMessages | null = null
+  ParentMessages extends BaseMessages = {}
 > {
-  build(): DispatchBuildFn<never, {}, {}, StateDispatcher<{}, {}, never>, null>;
+  build(): DispatchBuildFn<never, {}, {}, StateDispatcher<{}, {}, never>, ParentMessages>;
   build<Dispatcher extends StateDispatcher<M, Props, any>>(
     curryBuildFn: (
       builder: StateBuilder<Next, M, Props>,
@@ -81,21 +81,25 @@ export function transition<
   Next extends string = never,
   M extends BaseMessages = {},
   Props extends {} = {},
-  Parent extends BaseMessages | null = null,
+  Parent extends BaseMessages = {},
 >(): DispatchBuilder<Next, M, Props, Parent> {
   return new DispatchBuilder();
 }
 
+// Complex type that we build for constructing new states. It takes one fake param (the last one),
+// solely used to force ParentMessages to be contravariant. We always pass null to that param and
+// cast to any.
 type DispatchBuildFn<
   _Next extends string,
   M extends BaseMessages,
   Props extends {},
   Dispatcher extends StateDispatcher<M, Props, any>,
-  ParentMessages extends BaseMessages | null,
+  ParentMessages extends BaseMessages,
 > = (
   machine: Machine<M, any, any, any, any>,
   props: Props,
-  parent: Parent<NonNullable<ParentMessages>>
+  parent: Parent<NonNullable<ParentMessages>>,
+  _: ParentMessages
 ) => Dispatcher;
 
 export class Parent<M extends BaseMessages> {
@@ -183,7 +187,7 @@ export class MachineFlyweight<Props extends {}, M extends Machine<any, any, any,
   }
 }
 
-type GetChildren<T> = T extends StateDispatcher<any, any, infer C> ? C : never;
+export type GetChildren<T> = T extends StateDispatcher<any, any, infer C> ? C : never;
 export class DispatcherFlyweight<
   Props extends {},
   Dispatcher extends StateDispatcher<any, Props, any>
@@ -214,9 +218,16 @@ function upsert<Hash extends {}, Key extends keyof Hash>(
  * =================================================================================================
  */
 
-type BuilderMap<M extends BaseMessages, AllTransitions extends string, Props extends {}> = {
-  [K in AllTransitions]: DispatchBuildFn<any, Partial<M>, Props, any, any>;
+type BuilderMap<
+  M extends BaseMessages,
+  AllTransitions extends string,
+  Props extends {},
+  ParentType extends Parent<any> | null
+> = {
+  [K in AllTransitions]: DispatchBuildFn<any, Partial<M>, Props, any, MessagesFrom<ParentType>>;
 };
+
+export type MessagesFrom<P> = P extends Parent<infer M> ? M : {};
 
 // The end goal of this is the final accessor: a way to figure out what keys need to be in the state
 // class map you pass into the machine constructor. Otherwise, the class map won't ensure that your
@@ -226,28 +237,28 @@ type NextStateOf<T> = T extends DispatchBuildFn<infer Next, any, any, any, any> 
 export type BuilderMapOf<M> = M extends Machine<any, infer BM, any, any, any> ? BM : never;
 // Grab the state transition names from the builder map. This returns whatever transitions are in
 // the keys; it doesn't yet tell you which transitions are asked for
-export type TransitionNamesOf<M> = M extends BuilderMap<any, infer T, any> ? T : never;
+export type TransitionNamesOf<M> = M extends BuilderMap<any, infer T, any, any> ? T : never;
 // Get exactly the list of transitions requested from the builder map
-export type LoadPreciseTransitions<BM extends BuilderMap<any, any, any>> = NextStateOf<
+export type LoadPreciseTransitions<BM extends BuilderMap<any, any, any, any>> = NextStateOf<
   BM[TransitionNamesOf<BM>]
 >;
-export type FullySpecifiedBuilderMap<BM extends BuilderMap<any, any, any>> = {
+export type FullySpecifiedBuilderMap<BM extends BuilderMap<any, any, any, any>> = {
   [K in LoadPreciseTransitions<BM>]: DispatchBuildFn<any, any, any, any, any>;
 }
 
 type MachineArgs<
   M extends BaseMessages,
   StaticProps extends {},
-  B extends BuilderMap<M, any, any>,
+  B extends BuilderMap<M, any, any, any>,
 > = {
   initial: keyof B & string,
-  states: B & FullySpecifiedBuilderMap<B>,
+  states: B & FullySpecifiedBuilderMap<B>
   props: StaticProps
 };
 
 export class Machine<
   M extends BaseMessages,
-  B extends BuilderMap<M, any, any>,
+  B extends BuilderMap<M, any, any, ParentType>,
   StaticProps extends {},
   DynamicProps extends {},
   ParentType extends Parent<any> | null
@@ -374,7 +385,7 @@ export class Machine<
 
   private _createAndStart<N extends keyof B>(name: N & string, props: StaticProps & DynamicProps) {
     const stateBuilder = this.builders[name];
-    const current = stateBuilder(this, props, this._parent as any);
+    const current = stateBuilder(this, props, this._parent as any, null as any);
     this._current = current;
     this._currentName = name;
     const dispatcherEvent = this._dispatcherEventMap[name];
@@ -415,7 +426,7 @@ type DefinedKeys<Some> = {
 }[keyof Some];
 type Rest<Full, Some extends Partial<Full>> = Omit<Full, DefinedKeys<Some>>;
 
-type NoStaticPropsArgs<B extends BuilderMap<any, any, any>> = {
+type NoStaticPropsArgs<B extends BuilderMap<any, any, any, any>> = {
   initial: keyof B & string,
   states: B & FullySpecifiedBuilderMap<B>
 };
@@ -425,12 +436,12 @@ export class MachineBuilder<
   Props extends {},
   ParentType extends Parent<any> | null
 > {
-  build<B extends BuilderMap<M, any, Props>>(
+  build<B extends BuilderMap<M, any, Props, ParentType>>(
     args: NoStaticPropsArgs<B>
   ): Machine<M, B, {}, Props, ParentType>;
 
   build<
-    B extends BuilderMap<M, any, Props>,
+    B extends BuilderMap<M, any, Props, ParentType>,
     StaticProps extends Partial<Props>
   >(
     args: MachineArgs<M, StaticProps, B>
