@@ -35,7 +35,10 @@ export class StateBuilder<
     this.machine.force(next, updateProps);
   }
 
-  child<ChildM extends BaseMessages = {}, ChildProps extends {} = {}>(): MachineBuilder<ChildM, ChildProps, Parent<M>> {
+  child<
+    ChildM extends BaseMessages = {},
+    ChildProps extends Props = Props
+  >(): MachineBuilder<ChildM, ChildProps, Parent<M>, Props> {
     return new MachineBuilder();
   }
 }
@@ -246,14 +249,19 @@ export type FullySpecifiedBuilderMap<BM extends BuilderMap<any, any, any, any>> 
   [K in LoadPreciseTransitions<BM>]: DispatchBuildFn<any, any, any, any, any>;
 }
 
+export type RestrictParentProps<StaticProps extends {}, ParentProps extends {}> = {
+  [K in keyof StaticProps]: K extends keyof ParentProps ? never : StaticProps[K];
+};
+
 type MachineArgs<
   M extends BaseMessages,
   StaticProps extends {},
   B extends BuilderMap<M, any, any, any>,
+  ParentProps extends {},
 > = {
   initial: keyof B & string,
   states: B & FullySpecifiedBuilderMap<B>
-  props: StaticProps
+  props: StaticProps & RestrictParentProps<StaticProps, ParentProps>
 };
 
 export class Machine<
@@ -279,7 +287,7 @@ export class Machine<
 
   protected _parent: ParentType | null = null;
 
-  constructor(args: MachineArgs<M, StaticProps, B>) {
+  constructor(args: MachineArgs<M, StaticProps, B, any>) {
     this._initial = this._currentName = args.initial;
     this._staticProps = args.props;
     this.builders = args.states;
@@ -426,7 +434,9 @@ type DefinedKeys<Some> = {
 }[keyof Some];
 type Rest<Full, Some extends Partial<Full>> = Omit<Full, DefinedKeys<Some>>;
 
-type NoStaticPropsArgs<B extends BuilderMap<any, any, any, any>> = {
+type NoStaticPropsArgs<
+  B extends BuilderMap<any, any, any, any>,
+> = {
   initial: keyof B & string,
   states: B & FullySpecifiedBuilderMap<B>
 };
@@ -434,23 +444,29 @@ type NoStaticPropsArgs<B extends BuilderMap<any, any, any, any>> = {
 export class MachineBuilder<
   M extends BaseMessages,
   Props extends {},
-  ParentType extends Parent<any> | null
+  ParentType extends Parent<any> | null,
+  ParentProps extends {}
 > {
   build<B extends BuilderMap<M, any, Props, ParentType>>(
-    args: NoStaticPropsArgs<B>
+    // If there is a parent, ensure that the parent's props are a subtype of this machine's props.
+    // If they aren't, the user needs to specify the extra props as static props using the other
+    // override build function
+    args: ParentType extends null ? NoStaticPropsArgs<B> : (
+      ParentProps extends Props ? NoStaticPropsArgs<B> : never
+    )
   ): Machine<M, B, {}, Props, ParentType>;
 
   build<
     B extends BuilderMap<M, any, Props, ParentType>,
     StaticProps extends Partial<Props>
   >(
-    args: MachineArgs<M, StaticProps, B>
+    args: MachineArgs<M, StaticProps, B, ParentProps>
   ): Machine<M, B, StaticProps, Rest<Props, StaticProps>, ParentType>;
 
   build<
     B extends BuilderMap<M, any, Props, ParentType>,
     StaticProps extends Partial<Props>
-  >(args: NoStaticPropsArgs<B> | MachineArgs<M, StaticProps, B>) {
+  >(args: NoStaticPropsArgs<B> | MachineArgs<M, StaticProps, B, ParentProps>) {
     if(hasStaticProps(args)) return new Machine(args);
 
     return new Machine({
@@ -462,14 +478,14 @@ export class MachineBuilder<
 
 function hasStaticProps<
   N extends NoStaticPropsArgs<any>,
-  M extends MachineArgs<any, any, any>
+  M extends MachineArgs<any, any, any, any>
 >(args: N | M): args is M {
-  return (args as MachineArgs<any, any, any>).props !== undefined;
+  return (args as MachineArgs<any, any, any, any>).props !== undefined;
 }
 
 export function machine<
   M extends BaseMessages = {},
   Props extends {} = {}
->(): MachineBuilder<M, Props, null> {
+>(): MachineBuilder<M, Props, null, {}> {
   return new MachineBuilder();
 }

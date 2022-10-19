@@ -921,3 +921,122 @@ testType(() => {
     },
   }));
 });
+
+testType(() => {
+  // It should be an error to have props that mismatch with the parent props
+  type ChildProps = {
+    msg: number,
+  };
+  type ParentProps = {
+    msg: string,
+  };
+
+  const Inner = create.transition<never, {}, ChildProps>().build();
+  create.transition<never, {}, ParentProps>().build(state => state.build({
+    children: {
+      // @ts-expect-error
+      inner: state.child<{}, ChildProps>().build({
+        initial: 'Inner',
+        states: { Inner },
+      }),
+    },
+    messages: {},
+  }));
+});
+
+testType(() => {
+  // It should be an error to have props that do not contain the parent props; it would result in
+  // invalid start() calls to the child
+  type ChildProps = {
+  };
+  type ParentProps = {
+    msg: string,
+  };
+
+  const Inner = create.transition<never, {}, ChildProps>().build();
+  create.transition<never, {}, ParentProps>().build(state => state.build({
+    children: {
+      // @ts-expect-error
+      inner: state.child<{}, ChildProps>().build({
+        initial: 'Inner',
+        states: { Inner },
+      }),
+    },
+    messages: {},
+  }));
+});
+
+testType(() => {
+  // It should be an error to have static props that override the parent props; start() calls should
+  // only accept dynamic props, and if you set a static prop and try to pass it in, the compiler
+  // should error out
+  type Props = {
+    msg: string,
+  };
+
+  const Inner = create.transition<never, {}, Props>().build();
+  create.transition<never, {}, Props>().build(state => state.build({
+    children: {
+      // @ts-expect-error
+      inner: state.child<{}, Props>().build({
+        initial: 'Inner',
+        states: { Inner },
+        props: {
+          msg: "hi",
+        },
+      }),
+    },
+    messages: {},
+  }));
+});
+
+testType(() => {
+  // It should be allowed to have child props that are larger than the parent props, if all the
+  // extra props are passed in as static props
+  type ChildProps = {
+    msg: string,
+    print: boolean,
+  };
+  type ParentProps = {
+    msg: string,
+  };
+
+  const Inner = create.transition<never, {}, ChildProps>().build();
+  create.transition<never, {}, ParentProps>().build(state => state.build({
+    children: {
+      inner: state.child<{}, ChildProps>().build({
+        initial: 'Inner',
+        states: { Inner },
+        props: {
+          print: true,
+        },
+      }),
+    },
+    messages: {},
+  }));
+});
+
+testType(() => {
+  // It should be an error to have child props that are larger than the parent props, if those props
+  // are not set as static props in the machine constructor (because otherwise they will never get
+  // set).
+  type ChildProps = {
+    msg: string,
+    print: boolean,
+  };
+  type ParentProps = {
+    msg: string,
+  };
+
+  const Inner = create.transition<never, {}, ChildProps>().build();
+  create.transition<never, {}, ParentProps>().build(state => state.build({
+    children: {
+      // @ts-expect-error
+      inner: state.child<{}, ChildProps>().build({
+        initial: 'Inner',
+        states: { Inner },
+      }),
+    },
+    messages: {},
+  }));
+});

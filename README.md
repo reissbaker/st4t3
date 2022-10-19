@@ -5,7 +5,7 @@ state graphs with minimal memory usage. It only keeps a single state instance
 in memory at a time per-machine, and allows you to break large state machines
 into many files rather than forcing you to define the machine entirely in one
 file to get full type safety. There are no runtime dependencies and the code is
-<400 lines of TypeScript, excluding comments.
+<450 lines of TypeScript, excluding comments.
 
 * [Development](#development)
 * [Getting started](#getting-started)
@@ -515,6 +515,33 @@ machine.dispatch("land");
 Nested state machines, like all state machines, don't need to all be defined in
 the same file; it's completely valid to break apart the states into separate
 files.
+
+## A note about child prop types
+
+Since child machines have their `machine.start({ ... })` functions called with
+the parent's props, there are some restrictions on what the child machine's
+props must be:
+
+1. Child machines must accept all of the parent's props. Otherwise, the
+   `machine.start({ ... })` call would be invalid, since it would be passing in
+   props that the `start` function doesn't ordinarily accept.
+2. Child machines can't declare parent props as static, since static props
+   can't be passed into `machine.start({ ... })` &mdash; and parents will pass
+   all of their props into the child machines `start` method.
+3. If child machines define extra props unknown to the parent, they must be
+   declared as static props, since the parent won't know to pass those unknown
+   props to the child's `start` method.
+
+These restrictions are checked by the compiler, so it's impossible to
+accidentally have these kinds of bugs. Note that this is only applicable to
+child *machines* &mdash; the child states themselves can ignore props they
+don't use, like any other kind of state.
+
+These restrictions are in fact the primary reason for the design of static
+props: without static props &mdash; that is, if all props had to be passed into
+`machine.start({ ... })` &mdash; it would be impossible to have child states
+with differing props from their parents, since the parents couldn't pass in
+data they didn't know existed to the child machines.
 
 ## Subscribing to nested events:
 
