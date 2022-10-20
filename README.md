@@ -1,4 +1,4 @@
-# st4t3
+# St4t3
 
 A small-but-powerful typesafe state machine library designed to handle large
 state graphs with minimal memory usage. It only keeps a single state instance
@@ -431,7 +431,7 @@ using this as a generic EventEmitter class.
 
 # Nested state machines
 
-The st4t3 library has built-in support for nested (also called "hierarchical")
+The St4t3 library has built-in support for nested (also called "hierarchical")
 state machines, using the `children` property. State machines nested
 inside states will automatically be started when the parent state starts, and
 stopped when the parent stops, and will have the parent's props passed to it at
@@ -668,7 +668,7 @@ well.
 
 # Performance
 
-`st4t3` allocates the state objects on-demand, when you call `start` or `goto`.
+St4t3 allocates the state objects on-demand, when you call `start` or `goto`.
 It only keeps the current state in memory (or no states in memory, prior to the
 first `start` call).
 
@@ -704,16 +704,16 @@ collected like every other JS object.
 ### XState
 
 XState is the 800lb gorilla in the room of JS/TS state machine libraries.
-Although XState and st4t3 have similar goals in terms of making stateful code
+Although XState and St4t3 have similar goals in terms of making stateful code
 more understandable and reducing explicit branching, they implement different
 programming models: XState allows modeling finite state machines and
-statecharts, whereas st4t3 is similar to a "transition system" (also called an
+statecharts, whereas St4t3 is similar to a "transition system" (also called an
 "infinite state machine"). Finite state machines have lexical power equivalent
 to a regex; I'm not familiar with formalized lexical power of statecharts, but
 since they're largely just hierarchical finite state machines, they in practice
 don't seem to be particularly more expressive &mdash; although allowing
 hierarchical machines is at least much more convenient than flat ones. On the
-other hand, st4t3 is Turing-complete.
+other hand, St4t3 is Turing-complete.
 
 For states that can be modeled by a finite state machine, XState allows
 excellent tooling; it provides, for example, visualizations of every state in
@@ -725,7 +725,7 @@ regex](https://stackoverflow.com/questions/1732348/regex-match-open-tags-except-
 you can't model it with a finite state machine, and modeling it with a
 statechart will either be difficult or perhaps impossible.
 
-On the other hand, since st4t3 is Turing-complete, tooling is by definition
+On the other hand, since St4t3 is Turing-complete, tooling is by definition
 more limited, since making strong guarantees about whether certain code will
 run or halt given various inputs is NP-complete. However, you'll be able to
 model just about anything a programming language can represent, and it will
@@ -733,18 +733,19 @@ often be more concise than doing so in XState. Because XState doesn't use
 ordinary TypeScript to determine things like whether or not an input should
 result in a state transition, it needs to invent its own sub-language for e.g.
 branching, using a variety of "guard" types expressed as JSON instead of an `if`
-statement.
+statement. St4t3 just uses `if` statements, or whatever other TypeScript code
+you'd want to use.
 
-XState is also much larger and more complex than st4t3; the "minimal" XState
+XState is also much larger and more complex than St4t3; the "minimal" XState
 implementation &mdash; which is missing many features &mdash; is more than
-double the size of st4t3; meanwhile, the "core" implementation (the
+double the size of St4t3; meanwhile, the "core" implementation (the
 feature-complete version, but without counting any of the external tooling) is
 roughly 16x the code count. It's hefty.
 
 ### TS-FSM
 
 TSM-FSM is a lovely little finite state machine library whose `Events` system
-inspired st4t3's message dispatch system. It's extremely small, and if you know
+inspired St4t3's message dispatch system. It's extremely small, and if you know
 you want a finite state machine, it looks like a nice one.
 
 The same lexical power caveats apply, but even more strongly, since TS-FSM is
