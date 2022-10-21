@@ -240,6 +240,14 @@ describe("State Machines", () => {
     machine.start({});
     expect(spy).toHaveBeenCalledTimes(0);
   });
+
+  it<Should>("ignore messages that blank states don't define", ({ machine }) => {
+    machine.start({});
+    machine.goto("Final");
+    expect(() => {
+      machine.dispatch("next");
+    }).to.not.throw();
+  });
 });
 
 describe("State machine ultra shorthand syntax", () => {

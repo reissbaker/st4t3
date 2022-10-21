@@ -73,10 +73,10 @@ class DispatchBuilder<
     ) => Dispatcher
   ) {
     return (machine: any, props: any, parent: any) => {
-      if(curryBuildFn) {
-        return curryBuildFn(new StateBuilder<Next, M, Props>(machine, props), parent);
+      if(!curryBuildFn) {
+        curryBuildFn = (state: any) => state.build({ messages: {} });
       }
-      return new StateBuilder(machine, props);
+      return curryBuildFn(new StateBuilder<Next, M, Props>(machine, props), parent);
     };
   }
 }
