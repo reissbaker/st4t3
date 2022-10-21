@@ -713,7 +713,8 @@ to a regex; I'm not familiar with formalized lexical power of statecharts, but
 since they're largely just hierarchical finite state machines, they in practice
 don't seem to be particularly more expressive &mdash; although allowing
 hierarchical machines is at least much more convenient than flat ones. On the
-other hand, St4t3 is Turing-complete.
+other hand, St4t3 is Turing-complete. (To convince myself that this is true, I
+modeled a Brainfuck interpreter in St4t3, found in `examples/brainfuck.ts`.)
 
 For states that can be modeled by a finite state machine, XState allows
 excellent tooling; it provides, for example, visualizations of every state in

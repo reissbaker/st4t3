@@ -297,6 +297,11 @@ export class Machine<
     return this._running;
   }
 
+  props(): StaticProps & DynamicProps {
+    if(!this._props) throw new Error("Internal error: props are null");
+    return this._props;
+  }
+
   goto(next: keyof B & string, updateProps?: Partial<StaticProps & DynamicProps>) {
     // Boilerplate safety
     if(next === this._currentName) return;
