@@ -1,3 +1,10 @@
+/*
+ * This is a proof of concept to model a simple known Turing-complete system: a Brainfuck
+ * interpreter. It's not a very useful use of St4t3! You don't need a state machine to model
+ * Brainfuck, you just need loops and a switch statement. The only purpose here is as an example of
+ * modeling Turing-complete behavior.
+ */
+
 import * as create from "../index";
 
 type Messages = {
@@ -22,10 +29,10 @@ type Props = {
 };
 
 type HaltStates = "Success"
-                 | "Segfault"
-                 | "InsufficientInput"
-                 | "SyntaxError"
-                 ;
+                | "Segfault"
+                | "InsufficientInput"
+                | "SyntaxError"
+                ;
 const Running = create.transition<HaltStates | "Running", Messages, Props>().build(state => {
   const props = state.props;
 
