@@ -22,32 +22,40 @@ type Watcher<T extends EvSource<any, any>> = {
 
 type WatcherDict<T extends EvSource<any, any>> = { [key: string]: Watcher<T>[] };
 
-class FollowHandler {
+export type Param0<T> = T extends (arg: infer A, ...any: any) => any ? A : never;
+export type Param1<T> = T extends (a1: any, a2: infer A) => any ? A : never;
+
+export type On<T> = T extends DomEmitter<any, any> ? T["addEventListener"] :
+  T extends Emitter<any, any> ? T["on"] : never;
+export type Off<T> = T extends DomEmitter<any, any> ? T["removeEventListener"] :
+  T extends Emitter<any, any> ? T["off"] : never;
+
+export class FollowHandler {
   private readonly _watched: WatcherDict<Emitter<any, any>> = {};
   private readonly _domWatched: WatcherDict<DomEmitter<any, any>> = {};
 
-  on<Name extends string, Handler extends Fn, T extends EvSource<Name, Handler>>(
-    emitter: T, event: Name, cb: Handler
-  ): Handler {
-    if(isDomStyle(emitter)) return this.onDomEmitter(emitter, event, cb);
-    return this.onEmitter(emitter, event, cb);
+  on<T extends EvSource<any, any>>(
+    emitter: T, event: Param0<On<T>>, cb: Param1<On<T>>
+  ) {
+    if(isDomStyle(emitter)) return this.onDomEmitter(emitter, event as string, cb);
+    return this.onEmitter(emitter, event as string, cb);
   }
 
-  off<Name extends string, Handler extends Fn, T extends EvSource<Name, Handler>>(
-    emitter: T, event: Name, cb: Handler
+  off<T extends EvSource<any, any>>(
+    emitter: T, event: Param0<Off<T>>, cb: Param1<Off<T>>
   ): boolean {
     if(isDomStyle(emitter)) return this.offDomEmitter(emitter, event, cb);
     return this.offEmitter(emitter, event, cb);
   }
 
-  once<Name extends string, Handler extends Fn, T extends EvSource<Name, Handler>>(
-    emitter: T, event: Name, cb: Handler
+  once<T extends EvSource<any, any>>(
+    emitter: T, event: Param0<On<T>>, cb: Param1<On<T>>
   ): (...args: any) => any {
-    const handler = this.on(emitter, event, (...args: any) => {
+    const handler = this.on(emitter, event, ((...args: any) => {
       const ret = cb(...args);
       this.off(emitter, event, handler);
       return ret;
-    });
+    }) as any);
     return handler;
   }
 
