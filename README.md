@@ -357,10 +357,10 @@ const State = create.transition<"Next">().build(state => {
 ```
 
 But... there's potentially a subtle problem here. Let's assume `emitter` is
-going to keep emitting more data. We haven't deregistered from it, so as more
-data comes in, `State` will keep buffering it, causing a memory leak! And
-worse, if it sees the special `"next"` string, it'll cause a state transition,
-even if it's not the current state!
+going to keep emitting more data, even after the `"next"` message. We haven't
+deregistered from it, so as more data comes in, `State` will keep buffering it,
+causing a memory leak! And worse, if it sees the special `"next"` string, it'll
+cause a state transition, even if it's not the current state!
 
 One way of handling this would be to manually deregister every event handler on
 the `stop` message handler. But that's pretty error-prone, since you can easily
