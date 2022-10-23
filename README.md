@@ -10,6 +10,8 @@ file to get full type safety. There are no runtime dependencies and the code is
 * [Development](#development)
 * [Getting started](#getting-started)
 * [Injecting props](#injecting-props)
+* [Following events from other
+  libraries](#following-events-from-other-libraries)
 * [Events](#events)
 * [Nested state machines](#nested-state-machines)
 * [Type safety](#type-safety)
@@ -334,12 +336,73 @@ machine.dispatch("move", 0.5, 0.2); // Compiler checks you pass x, y here
 machine.dispatch("jump"); // Compiler checks you pass nothing here
 ```
 
+# Following events from other libraries
+
+It's pretty common to want to make state transitions based on outside events,
+either from other libraries (Node file watching?) or the DOM. You might try to
+do something like this:
+
+```typescript
+const State = create.transition<"Next">().build(state => {
+  const buffer = [];
+  emitter.on("event", (data) => {
+    if(data === "next") {
+      state.goto("Next");
+      return;
+    }
+    buffer.push(data);
+  });
+  return state.build();
+});
+```
+
+But... there's potentially a subtle problem here. Let's assume `emitter` is
+going to keep emitting more data. We haven't deregistered from it, so as more
+data comes in, `State` will keep buffering it, causing a memory leak! And
+worse, if it sees the special `"next"` string, it'll cause a state transition,
+even if it's not the current state!
+
+One way of handling this would be to manually deregister every event handler on
+the `stop` message handler. But that's pretty error-prone, since you can easily
+add a handler and forget to deregister it. St4t3 provides a helpful `follow`
+API that wraps Node-style EventEmitters, or DOM-style
+`addEventListener`/`removeEventListener` objects, and will automatically
+deregister any event handler passed through the `follow` API when the state
+stops or is transitioned away from. A fixed version of the previous example
+would look like:
+
+```typescript
+const State = create.transition<"Next">().build(state => {
+  const buffer = [];
+  state.follow.on(emitter, "event", (data) => {
+    if(data === "next") {
+      state.goto("Next");
+      return;
+    }
+    buffer.push(data);
+  });
+  return state.build();
+});
+```
+
+The `follow.on` call works with Node-style EventEmitters, and objects with
+`addEventListener`/`removeEventListener` functions &mdash; there's no
+`follow.addEventListener`, because `follow.on` will transparently use that if
+`on`/`off` don't exist. It's also typesafe, and if your EventEmitter is typed
+to only handle certain events, or takes callbacks of different types depending
+on the event, the `follow` API will mirror whatever types passed-in emitter
+accepts or rejects.
+
+The `follow` object supports the full range of `on`, `off`, and `once` calls,
+just like ordinary Node-style EventEmitters.
+
 # Events
 
 States emit events when they start and stop, and you can listen to them via a
-slimmed-down version of the NodeJS EventEmitter API. All state EventEmitters
-are accessible from `machine.events('StateName')`; for example, to register for
-the `Jump` state's `start` event, you'd do the following:
+slimmed-down version of the NodeJS EventEmitter API. (And yes, that means you
+can listen to other machines with the `state.follow` API!) All state
+EventEmitters are accessible from `machine.events('StateName')`; for example,
+to register for the `Jump` state's `start` event, you'd do the following:
 
 ```typescript
 machine.events("Jump").on("start", (props: JumpProps) => {
