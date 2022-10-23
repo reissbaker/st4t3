@@ -131,5 +131,5 @@ function isDomStyle<Name extends string, Handler extends Fn>(
   source: EvSource<Name, Handler>
 ): source is DomEmitter<Name, Handler> {
   const testSource = (source as Emitter<Name, Handler>);
-  return testSource.on !== undefined && testSource.off !== undefined;
+  return testSource.on === undefined && testSource.off === undefined;
 }
