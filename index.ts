@@ -1,4 +1,5 @@
 import { EventEmitter } from "./src/event-emitter";
+import { FollowHandler } from "./src/follow-handler";
 export { EventEmitter };
 
 type BaseMessages = {
@@ -17,6 +18,8 @@ export class StateBuilder<
   M extends BaseMessages,
   Props extends {},
 > {
+  readonly follow = new FollowHandler();
+
   constructor(
     private readonly machine: Machine<Partial<M>, any, any, any, any>,
     readonly props: Props
@@ -25,8 +28,8 @@ export class StateBuilder<
   build<C extends Children<Props, M>>(args: BuildArgs<M, Props, C>): StateDispatcher<M, Props, C>;
   build(): StateDispatcher<M, Props, {}>;
   build<C extends Children<Props, M>>(args?: BuildArgs<M, Props, C>) {
-    if(args) return new StateDispatcher(args, this.props);
-    return new StateDispatcher({ messages: {} }, this.props);
+    if(args) return new StateDispatcher(args, this.props, this.follow);
+    return new StateDispatcher({ messages: {} }, this.props, this.follow);
   }
 
   goto(next: Next, updateProps?: Partial<Props>) {
@@ -131,7 +134,8 @@ export class StateDispatcher<M extends BaseMessages, P extends {}, C extends Chi
 
   constructor(
     private readonly args: BuildArgs<M, P, C>,
-    private readonly props: P
+    private readonly props: P,
+    private readonly follow: FollowHandler,
   ) {
     this.children = args.children || {};
     this.hasChildren = !!args.children;
@@ -155,7 +159,10 @@ export class StateDispatcher<M extends BaseMessages, P extends {}, C extends Chi
       handler(...d);
     }
 
-    if(emitter && name === "stop") emitter.emit("stop", this.props);
+    if(name === "stop") {
+      if(emitter) emitter.emit("stop", this.props);
+      this.follow.clear();
+    }
   }
 
   dispatchExceptStop<Name extends Exclude<keyof M, "stop">>(

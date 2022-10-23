@@ -1,5 +1,6 @@
 import { vi, expect, it, describe, beforeEach } from "vitest";
 import * as create from "../index";
+import { EventEmitter } from "../src/event-emitter";
 
 describe("State Machines", () => {
   type Messages = {
@@ -272,6 +273,89 @@ describe("State machine ultra shorthand syntax", () => {
     const spy = machine.events('Final').on('start', vi.fn());
     machine.start({});
     expect(spy).toHaveBeenCalledOnce();
+  });
+});
+
+describe("State machines using the follow API", () => {
+  type EventMapping = {
+    skip: void,
+  };
+  const emitter = new EventEmitter<EventMapping>();
+
+  type Messages = {
+    next(): void,
+  };
+  const Initial = create.transition<"Final" | "Intermediate", Messages>().build(state => {
+    state.follow.on(emitter, "skip", () => {
+      state.goto("Final");
+    });
+
+    return state.build({
+      messages: {
+        next() {
+          state.goto("Intermediate");
+        },
+      },
+    });
+  });
+
+  const Intermediate = create.transition<"Final", Messages>().build(state => {
+    return state.build({
+      messages: {
+        next() {
+          state.goto("Final");
+        },
+      },
+    });
+  });
+
+  const Final = create.transition().build();
+
+  function machine() {
+    return create.machine<Messages>().build({
+      initial: "Initial",
+      states: { Initial, Intermediate, Final },
+    });
+  }
+
+  type Machine = ReturnType<typeof machine>;
+
+  type Should = {
+    machine: Machine,
+  };
+
+  beforeEach<Should>(ctx => {
+    ctx.machine = machine();
+  });
+
+  it<Should>("register to events passed into the follow.on call", ({ machine }) => {
+    machine.start({});
+    expect(machine.current()).toStrictEqual("Initial");
+    emitter.emit("skip", undefined);
+    expect(machine.current()).toStrictEqual("Final");
+  });
+  it<Should>("deregister events after transition", ({ machine }) => {
+    machine.start({});
+    expect(machine.current()).toStrictEqual("Initial");
+    machine.dispatch("next");
+    expect(machine.current()).toStrictEqual("Intermediate");
+    emitter.emit("skip", undefined);
+    expect(machine.current()).toStrictEqual("Intermediate");
+  });
+  it<Should>("deregister events after stop", ({ machine }) => {
+    machine.start({});
+    expect(machine.current()).toStrictEqual("Initial");
+    machine.stop();
+    emitter.emit("skip", undefined);
+    expect(machine.current()).toStrictEqual("Initial");
+  });
+  it<Should>("re-register when the state is started again", ({ machine }) => {
+    machine.start({});
+    expect(machine.current()).toStrictEqual("Initial");
+    machine.stop();
+    machine.start({});
+    emitter.emit("skip", undefined);
+    expect(machine.current()).toStrictEqual("Final");
   });
 });
 
