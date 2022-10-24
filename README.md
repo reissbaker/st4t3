@@ -5,7 +5,7 @@ state graphs with minimal memory usage. It only keeps a single state instance
 in memory at a time per-machine, and allows you to break large state machines
 into many files rather than forcing you to define the machine entirely in one
 file to get full type safety. There are no runtime dependencies and the code is
-<450 lines of TypeScript, excluding comments.
+<550 lines of TypeScript, excluding comments.
 
 * [Development](#development)
 * [Getting started](#getting-started)
@@ -802,10 +802,10 @@ statement. St4t3 just uses `if` statements, or whatever other TypeScript code
 you'd want to use.
 
 XState is also much larger and more complex than St4t3; the "minimal" XState
-implementation &mdash; which is missing many features &mdash; is more than
-double the size of St4t3; meanwhile, the "core" implementation (the
-feature-complete version, but without counting any of the external tooling) is
-roughly 16x the code count. It's hefty.
+implementation &mdash; which is missing many features &mdash; is roughly double
+the size of St4t3; meanwhile, the "core" implementation (the feature-complete
+version, but without counting any of the external tooling) is roughly 16x the
+code count. It's hefty.
 
 ### TS-FSM
 
