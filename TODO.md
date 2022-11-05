@@ -1,17 +1,3 @@
-You should add a follow API to automatically deregister from event emitters
-when a state stops. Rather than registering to events, do something like:
-
-```typescript
-state.follow.on(emitter, "event", () => {
-  // ...
-});
-```
-
-Otherwise you'll get memory leaks and/or weird behavior when your state "stops"
-but hasn't cleaned up emitters it registered to. You can handle arbitrary
-node-like EventEmitter APIs, not just your own, so that it works with
-everything.
-
 You should make states be optionally async (ideally at low runtime cost for
 non-async states); would be super useful for loading resources or general
 server-side use. Quick sketch of how this could work: machines act as message
