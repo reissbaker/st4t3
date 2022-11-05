@@ -11,3 +11,9 @@ Just check if the message handler returns a promise. If it does, wait for it;
 otherwise call `done` immediately.
 
 Use expect-type to test type narrowing: https://github.com/mmkal/expect-type
+
+Would be VERY nice to support message middleware. Right now you have to
+manually call any middleware-esque functions you want (or do `...middleware`,
+but that's dangerous bc later definitions can overwrite the middleware ones);
+real middleware support would let you automatically respond to messages before
+or after the main state does stuff with them.
