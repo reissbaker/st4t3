@@ -18,13 +18,26 @@ export class StateBuilder<
   M extends BaseMessages,
   Props extends {},
 > {
-  readonly follow = new FollowHandler();
-
   constructor(
     private readonly machine: Machine<Partial<M>, any, any, any, any>,
-    readonly props: Props
+    readonly props: Props,
+    readonly follow: FollowHandler,
   ) {}
 
+  /*
+   * What is the point of these methods? Why not return the raw BuildArgs, which would be easier to
+   * manipulate programmatically since they're just ordinary hashes?
+   *
+   * The reason for these is to enforce type safety. The TypeScript compiler will enforce that the
+   * hashes you return have *at least* the expected keys, but won't enforce that extra keys are
+   * errors. Since most of the type safety boundaries in this library are more or less "you typed
+   * the same thing over here as you typed over there," not checking for extra keys is a pretty bad
+   * error: it means that typos typecheck.
+   *
+   * IMO, making typos fail typechecking is more useful than making it super easy to manipulate the
+   * arguments programmatically in middleware functions. To enable better middleware,
+   * StateDispatchers have a `merge` function that does what it sounds like.
+   */
   build<C extends Children<Props, M>>(args: BuildArgs<M, Props, C>): StateDispatcher<M, Props, C>;
   build(): StateDispatcher<M, Props, {}>;
   build<C extends Children<Props, M>>(args?: BuildArgs<M, Props, C>) {
