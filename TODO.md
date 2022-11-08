@@ -88,6 +88,7 @@ Refactor steps:
   machines and to middleware. Note that the `stop` function should take an
   optional event emitter... That way you can skip creating a fake emitter for
   the middleware.
+* [ ] Update the README
 
 Should methods defined in middleware count towards fulfilling the `Messages`
 spec from `transition<Messages>`? Honestly... yes, probably. Sigh. Middleware
