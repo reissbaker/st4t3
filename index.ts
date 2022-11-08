@@ -18,10 +18,11 @@ export class StateBuilder<
   M extends BaseMessages,
   Props extends {},
 > {
+  readonly follow = new FollowHandler();
+
   constructor(
     private readonly machine: Machine<Partial<M>, any, any, any, any>,
     readonly props: Props,
-    readonly follow: FollowHandler,
   ) {}
 
   /*
