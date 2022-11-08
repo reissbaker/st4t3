@@ -28,3 +28,68 @@ have the machines operate on dispatcher arrays rather than on single
 dispatchers. This way you can also easily have a `.before` method and a
 `.after` method that make middleware run before or after, without insane method
 currying.
+
+No you need explicit middleware for type safety, because we use the concrete
+dispatcher class for inference. Oh well. It's actually pretty easy.
+
+If middleware does a goto, it should short-circuit the main message call IMO.
+This is how most web frameworks do middleware and otherwise you're going to
+incentivize super weird data threading through props to tell the main state to
+ignore the message. IMO the main use case for goto() is short-circuiting; why
+would you use goto() otherwise?
+
+BTW you need to prevent `goto()` in `stop()` calls, because a) it is insane,
+and b) it will prompt insane short circuit behavior. Make it an error? Would be
+very cool to have a typesafe way to do this. Is `stop()` actually a message?
+Maybe it's something special, that only has access to a neutered StateBuilder
+instance. Make it an error for now, but something to think about. It's already
+very special cased. Maybe `start()` is the first function passed into
+`transition.build`, and `stop()` is the second? Oh god what if
+`transition.build` is even more overloaded, and can take an object with `start`
+and `stop` functions... Honestly I think this is the way. Much nicer for end
+users to have named arguments in a hash instead of two anonymous ones that have
+*very* similar types. Stop is not a message. This also simplifies message
+dispatching...
+
+Sigh. Once again this doesn't work. `stop()` often wants to clean up data
+created by `start()`, and having it in the same closure makes that simple. If
+its only shared context is objects in the global context, that becomes
+difficult/awkward without memory leaks. Instead we should redo how start works:
+
+```typescript
+create.transition<Messages, Props>().build(state => {
+  // Initialize here...
+  // important: `state` does NOT have `.goto`! That's a function on the `msg`
+  // object passed into the `messages` function in `state.build`
+
+  return state.build({
+    children:   { /* ... */ },
+    middleware: [ /* ... */ ],
+
+    messages: msg => msg.build({
+      someMessage() {
+        msg.goto('SomeState');
+      },
+    }),
+
+    stop() {
+    },
+  });
+});
+```
+
+Refactor steps:
+
+1. Refactor messages to be a function that takes the message builder object and
+   returns the message hash.
+2. Remove `goto` from the state builder class.
+3. Add the `stop` method to dispatchers + build args, and remove old special
+   casing for `stop` messages. Make sure to propagate stop calls to child
+   machines and to middleware. Note that the `stop` function should take an
+   optional event emitter... That way you can skip creating a fake emitter for
+   the middleware.
+4. Update the tests.
+
+Should methods defined in middleware count towards fulfilling the `Messages`
+spec from `transition<Messages>`? Honestly... yes, probably. Sigh. Middleware
+should be a hash instead of an array, then, so you can skip the `as const` bs.
