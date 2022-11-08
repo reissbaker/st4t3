@@ -88,8 +88,11 @@ Refactor steps:
   machines and to middleware. Note that the `stop` function should take an
   optional event emitter... That way you can skip creating a fake emitter for
   the middleware.
-* [ ] Update the README
+* [ ] Remove `stop` from the `BaseMessages` type definition.
+* [ ] Update the README.
 
 Should methods defined in middleware count towards fulfilling the `Messages`
 spec from `transition<Messages>`? Honestly... yes, probably. Sigh. Middleware
 should be a hash instead of an array, then, so you can skip the `as const` bs.
+Okay. This means StateBuilders need a `middleware` function that alters what
+`M` has to be, so that you can do correct type inference for `messages`.
