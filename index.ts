@@ -1,12 +1,7 @@
 import { EventEmitter } from "./src/event-emitter";
 import { FollowHandler } from "./src/follow-handler";
-export { EventEmitter };
-
-type BaseMessages = {
-  stop?: () => any,
-} & {
-  [key: string]: undefined | ((...args: any) => any),
-};
+import { BaseMessages } from "./src/base-messages";
+export { EventEmitter, BaseMessages };
 
 /*
  * State creation
@@ -17,12 +12,14 @@ export class StateBuilder<
   Next extends string,
   M extends BaseMessages,
   Props extends {},
+  ParentMessages extends BaseMessages
 > {
   readonly follow = new FollowHandler();
 
   constructor(
     private readonly machine: Machine<Partial<M>, any, any, any, any>,
     readonly props: Props,
+    readonly parent: Parent<ParentMessages>
   ) {}
 
   /*
@@ -39,17 +36,23 @@ export class StateBuilder<
    * arguments programmatically in middleware functions. To enable better middleware,
    * StateDispatchers have a `merge` function that does what it sounds like.
    */
-  build<C extends Children<Props, M>>(args: BuildArgs<M, Props, C>): StateDispatcher<M, Props, C>;
-  build(): StateDispatcher<M, Props, {}>;
-  build<C extends Children<Props, M>>(args?: BuildArgs<M, Props, C>) {
-    if(args) return new StateDispatcher(args, this.props, this.follow);
-    return new StateDispatcher({ messages: {} }, this.props, this.follow);
+  build(): StateDispatcher<Next, M, Props, ParentMessages, {}>;
+  build<C extends Children<Props, M>>(
+    args: BuildArgs<Next, M, Props, ParentMessages, C>
+  ): StateDispatcher<Next, M, Props, ParentMessages, C>;
+  build<C extends Children<Props, M>>(args?: BuildArgs<Next, M, Props, ParentMessages, C>) {
+    if(args) {
+      return new StateDispatcher<Next, M, Props, ParentMessages, C>(
+        args, this.props, this.follow, this.machine, this.parent
+      );
+    }
+    return new StateDispatcher(
+      { messages: (msg) => msg.build({}) }, this.props, this.follow, this.machine, this.parent
+    );
   }
 
-  goto(next: Next, updateProps?: Partial<Props>) {
-    // All goto calls from states are actually force calls for the machine; the only use case for
-    // transitioning to yourself is to re-run initialization code
-    this.machine.force(next, updateProps);
+  dispatch<Name extends keyof M>(name: Name, ...data: Params<M[Name]>) {
+    this.machine.dispatch(name, ...data as any);
   }
 
   child<
@@ -60,9 +63,25 @@ export class StateBuilder<
   }
 }
 
-type BuildArgs<M extends BaseMessages, Props extends {}, C extends Children<Props, M>> = {
+export class StartData<Props extends {}, ParentMessages extends BaseMessages> {
+  constructor(
+    readonly props: Props,
+    readonly parent: Parent<ParentMessages>,
+  ) {}
+}
+
+type BuildArgs<
+  Next extends string,
+  M extends BaseMessages,
+  Props extends {},
+  ParentMessages extends BaseMessages,
+  C extends Children<Props, M>
+> = {
   children?: C,
-  messages: M,
+  middleware?: Array<DispatchBuildFn<
+    Next, M, Props, StateDispatcher<Next, M, Props, ParentMessages, any>, ParentMessages
+  >>,
+  messages: (msg: MessageBuilder<Next, M, Props>) => MessageDispatcher<M>,
 };
 
 type Children<Props extends {}, ParentMessages extends BaseMessages> = {
@@ -75,28 +94,29 @@ class DispatchBuilder<
   Props extends {} = {},
   ParentMessages extends BaseMessages = {}
 > {
-  build(): DispatchBuildFn<never, {}, {}, StateDispatcher<{}, {}, never>, ParentMessages>;
-  build<Dispatcher extends StateDispatcher<M, Props, any>>(
+  build(): DispatchBuildFn<never, {}, {}, StateDispatcher<Next, {}, {}, ParentMessages, never>, ParentMessages>;
+  build<Dispatcher extends StateDispatcher<Next, M, Props, ParentMessages, any>>(
     curryBuildFn: (
-      builder: StateBuilder<Next, M, Props>,
-      parent: Parent<NonNullable<ParentMessages>>
+      builder: StateBuilder<Next, M, Props, ParentMessages>
     ) => Dispatcher
   ): DispatchBuildFn<Next, M, Props, Dispatcher, ParentMessages>;
 
-  build<Dispatcher extends StateDispatcher<M, Props, any>>(
+  build<Dispatcher extends StateDispatcher<Next, M, Props, ParentMessages, any>>(
     curryBuildFn?: (
-      builder: StateBuilder<Next, M, Props>,
-      parent: Parent<NonNullable<ParentMessages>>
+      builder: StateBuilder<Next, M, Props, ParentMessages>
     ) => Dispatcher
   ) {
     return (machine: any, props: any, parent: any) => {
       if(!curryBuildFn) {
-        curryBuildFn = (state: any) => state.build({ messages: {} });
+        curryBuildFn = ((state: StateBuilder<Next, any, Props, ParentMessages>) => {
+          return state.build({ messages: msg => msg.build({}) });
+        }) as ((builder: StateBuilder<Next, M, Props, ParentMessages>) => Dispatcher);
       }
-      return curryBuildFn(new StateBuilder<Next, M, Props>(machine, props), parent);
+      return curryBuildFn(new StateBuilder<Next, M, Props, ParentMessages>(machine, props, parent));
     };
   }
 }
+
 export function transition<
   Next extends string = never,
   M extends BaseMessages = {},
@@ -110,10 +130,10 @@ export function transition<
 // solely used to force ParentMessages to be contravariant. We always pass null to that param and
 // cast to any.
 type DispatchBuildFn<
-  _Next extends string,
+  Next extends string,
   M extends BaseMessages,
   Props extends {},
-  Dispatcher extends StateDispatcher<M, Props, any>,
+  Dispatcher extends StateDispatcher<Next, M, Props, ParentMessages, any>,
   ParentMessages extends BaseMessages,
 > = (
   machine: Machine<M, any, any, any, any>,
@@ -123,7 +143,7 @@ type DispatchBuildFn<
 ) => Dispatcher;
 
 export class Parent<M extends BaseMessages> {
-  constructor(private readonly dispatcher: StateDispatcher<M, any, any>) {}
+  constructor(private readonly dispatcher: StateDispatcher<any, M, any, any, any>) {}
 
   // Allows dispatching any message except the system-reserved "stop" message
   dispatch<Name extends Exclude<keyof M, "stop">>(
@@ -137,22 +157,63 @@ export class Parent<M extends BaseMessages> {
   }
 }
 
+// Message creation
+// -------------------------------------------------------------------------------------------------
+
+export class MessageBuilder<Next extends string, M extends BaseMessages, Props extends {}> {
+  constructor(
+    private readonly machine: Machine<M, any, any, any, any>
+  ) {}
+
+  build(messages: M): MessageDispatcher<M> {
+    return new MessageDispatcher(messages);
+  }
+
+  goto(next: Next, updateProps?: Partial<Props>) {
+    // All goto calls from states are actually force calls for the machine; the only use case for
+    // transitioning to yourself is to re-run initialization code
+    this.machine.force(next, updateProps);
+  }
+}
+
 /*
  * Message dispatching for states
  * =================================================================================================
  */
 
-export class StateDispatcher<M extends BaseMessages, P extends {}, C extends Children<P, M>> {
+export class MessageDispatcher<M extends BaseMessages> {
+  constructor(
+    private readonly messages: M
+  ) {}
+  dispatch<Name extends keyof M>(name: Name, ...data: Params<M[Name]>) {
+    const handler = this.messages[name];
+    if(handler) handler(...data as any[]);
+  }
+}
+
+export class StateDispatcher<
+  Next extends string,
+  M extends BaseMessages,
+  P extends {},
+  ParentMessages extends BaseMessages,
+  C extends Children<P, M>,
+> {
   readonly hasChildren: boolean; // dumb micro optimization for cpu branch predictor
   readonly children: Children<P, M>;
+  private readonly middleware: Array<StateDispatcher<Next, M, P, ParentMessages, any>>;
+  private readonly messages: MessageDispatcher<M>;
 
   constructor(
-    private readonly args: BuildArgs<M, P, C>,
+    args: BuildArgs<Next, M, P, any, C>,
     private readonly props: P,
     private readonly follow: FollowHandler,
+    machine: Machine<M, any, any, any, any>,
+    parent: Parent<ParentMessages>,
   ) {
     this.children = args.children || {};
     this.hasChildren = !!args.children;
+    this.middleware = (args.middleware || []).map(buildFn => buildFn(machine, props, parent, null));
+    this.messages = args.messages(new MessageBuilder(machine));
   }
 
   dispatch<Name extends keyof M>(
@@ -167,11 +228,11 @@ export class StateDispatcher<M extends BaseMessages, P extends {}, C extends Chi
       }
     }
 
-    const handler = this.args.messages[name];
-    if(handler) {
-      const d = data as any[];
-      handler(...d);
+    for(let i = 0; i < this.middleware.length; i++) {
+      this.middleware[i].dispatch(name, new EventEmitter(), ...data);
     }
+
+    this.messages.dispatch(name, ...data as any);
 
     if(name === "stop") {
       if(emitter) emitter.emit("stop", this.props);
@@ -211,10 +272,10 @@ export class MachineFlyweight<Props extends {}, M extends Machine<any, any, any,
   }
 }
 
-export type GetChildren<T> = T extends StateDispatcher<any, any, infer C> ? C : never;
+export type GetChildren<T> = T extends StateDispatcher<any, any, any, any, infer C> ? C : never;
 export class DispatcherFlyweight<
   Props extends {},
-  Dispatcher extends StateDispatcher<any, Props, any>
+  Dispatcher extends StateDispatcher<any, any, Props, any, any>
 > extends EventEmitter<StateEvents<Props>> {
   readonly children: {
     [K in keyof GetChildren<Dispatcher>]?: MachineFlyweight<Props, GetChildren<Dispatcher>[K]>;
@@ -298,7 +359,7 @@ export class Machine<
     [K in keyof B]?: DispatcherFlyweight<StaticProps & DynamicProps, ReturnType<B[K]>>
   } = {};
 
-  private _current: StateDispatcher<Partial<M>, StaticProps & DynamicProps, any> | null = null;
+  private _current: StateDispatcher<any, Partial<M>, StaticProps & DynamicProps, any, any> | null = null;
   private _currentName: keyof B & string;
   private _everRan = false;
   private _running = false;

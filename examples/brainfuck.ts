@@ -37,14 +37,14 @@ const Running = create.transition<HaltStates | "Running", Messages, Props>().bui
   const props = state.props;
 
   return state.build({
-    messages: {
+    messages: msg => msg.build({
       pointerIncrement() {
         props.pointer++;
         if(props.pointer >= props.bytes.length) props.bytes.push(0);
       },
       pointerDecrement() {
         props.pointer--;
-        if(props.pointer < 0) state.goto("Segfault");
+        if(props.pointer < 0) msg.goto("Segfault");
       },
       valIncrement() {
         props.bytes[props.pointer]++;
@@ -55,7 +55,7 @@ const Running = create.transition<HaltStates | "Running", Messages, Props>().bui
       readByte() {
         const byte = props.input.shift();
         if(!byte) {
-          state.goto("InsufficientInput");
+          msg.goto("InsufficientInput");
           return;
         }
 
@@ -89,7 +89,7 @@ const Running = create.transition<HaltStates | "Running", Messages, Props>().bui
           command = props.instructions[--props.instruction]
         ) {
           if(command === undefined) {
-            state.goto("SyntaxError");
+            msg.goto("SyntaxError");
             return;
           }
           if(command === "]") closeCount++;
@@ -97,9 +97,9 @@ const Running = create.transition<HaltStates | "Running", Messages, Props>().bui
         }
       },
       finish() {
-        state.goto("Success");
+        msg.goto("Success");
       },
-    },
+    }),
   });
 });
 

@@ -80,15 +80,14 @@ create.transition<Messages, Props>().build(state => {
 
 Refactor steps:
 
-1. Refactor messages to be a function that takes the message builder object and
-   returns the message hash.
-2. Remove `goto` from the state builder class.
-3. Add the `stop` method to dispatchers + build args, and remove old special
-   casing for `stop` messages. Make sure to propagate stop calls to child
-   machines and to middleware. Note that the `stop` function should take an
-   optional event emitter... That way you can skip creating a fake emitter for
-   the middleware.
-4. Update the tests.
+* [x] Refactor messages to be a function that takes the message builder object
+  and returns the message hash.
+* [x] Remove `goto` from the state builder class.
+* [ ] Add the `stop` method to dispatchers + build args, and remove old special
+  casing for `stop` messages. Make sure to propagate stop calls to child
+  machines and to middleware. Note that the `stop` function should take an
+  optional event emitter... That way you can skip creating a fake emitter for
+  the middleware.
 
 Should methods defined in middleware count towards fulfilling the `Messages`
 spec from `transition<Messages>`? Honestly... yes, probably. Sigh. Middleware

@@ -9,25 +9,25 @@ describe("State Machines", () => {
   };
 
   const Foo = create.transition<"Bar" | "Final", Messages>().build(state => state.build({
-    messages: {
+    messages: msg => msg.build({
       next() {
-        state.goto("Bar");
+        msg.goto("Bar");
       },
       end() {
-        state.goto("Final");
+        msg.goto("Final");
       },
-    },
+    }),
   }));
 
   const Bar = create.transition<"Foo" | "Final", Messages>().build(state => state.build({
-    messages: {
+    messages: msg => msg.build({
       next() {
-        state.goto("Foo");
+        msg.goto("Foo");
       },
       end() {
-        state.goto("Final");
+        msg.goto("Final");
       },
-    },
+    }),
   }));
 
   const Final = create.transition().build(state => state.build());
@@ -285,27 +285,36 @@ describe("State machines using the follow API", () => {
   type Messages = {
     next(): void,
   };
-  const Initial = create.transition<"Final" | "Intermediate", Messages>().build(state => {
+  type PrivateFinal = {
+    final(): void,
+  };
+
+  const Initial = create.transition<
+    "Final" | "Intermediate", Messages & PrivateFinal
+  >().build(state => {
     state.follow.on(emitter, "skip", () => {
-      state.goto("Final");
+      state.dispatch("final");
     });
 
     return state.build({
-      messages: {
-        next() {
-          state.goto("Intermediate");
+      messages: msg => msg.build({
+        final() {
+          msg.goto("Final");
         },
-      },
+        next() {
+          msg.goto("Intermediate");
+        },
+      }),
     });
   });
 
   const Intermediate = create.transition<"Final", Messages>().build(state => {
     return state.build({
-      messages: {
+      messages: msg => msg.build({
         next() {
-          state.goto("Final");
+          msg.goto("Final");
         },
-      },
+      }),
     });
   });
 
@@ -369,21 +378,21 @@ describe("State machines with messages that take arguments", () => {
     let elapsed = 0;
 
     return state.build({
-      messages: {
+      messages: msg => msg.build({
         update(delta, currentMs) {
           elapsed += delta;
-          if(elapsed > 1000 && currentMs > 1000) state.goto('Idle');
+          if(elapsed > 1000 && currentMs > 1000) msg.goto('Idle');
         },
-      },
+      }),
     });
   });
 
   const Idle = create.transition<'Stopped', Pick<Messages, "wake">>().build(state => state.build({
-    messages: {
+    messages: msg => msg.build({
       wake() {
-        state.goto('Stopped');
+        msg.goto('Stopped');
       }
-    }
+    })
   }));
 
   function machine() {
@@ -428,27 +437,27 @@ describe("State machines with props", () => {
     Pick<Props, 'allowDoubleJumps'>
   >().build((state) => {
     return state.build({
-      messages: {
+      messages: msg => msg.build({
         jump() {},
         jumpUpdateDouble() {},
         land() {
-          state.goto('Land');
+          msg.goto('Land');
         },
-      }
+      })
     });
   });
 
   const Land = create.transition<'Jump', Messages, Props>().build((state) => {
     return state.build({
-      messages: {
+      messages: msg => msg.build({
         land() {},
         jump() {
-          state.goto('Jump');
+          msg.goto('Jump');
         },
         jumpUpdateDouble(allowDoubleJumps) {
-          state.goto('Jump', { allowDoubleJumps });
+          msg.goto('Jump', { allowDoubleJumps });
         },
-      },
+      }),
     });
   });
 
@@ -548,11 +557,11 @@ describe("State machines with static props", () => {
     count: number,
   };
   const Initial = create.transition<"Final", Messages, Props>().build(state => state.build({
-    messages: {
+    messages: msg => msg.build({
       next() {
-        state.goto("Final");
+        msg.goto("Final");
       }
-    }
+    })
   }));
   const Final = create.transition<never, {}, Props>().build(state => state.build());
 
@@ -604,11 +613,11 @@ describe("Child states", () => {
     'DoubleJump',
     Pick<Messages, 'jump'>
   >().build(state => state.build({
-    messages: {
+    messages: msg => msg.build({
       jump() {
-        state.goto('DoubleJump');
+        msg.goto('DoubleJump');
       }
-    },
+    }),
   }));
 
   const DoubleJump = create.transition().build(state => state.build());
@@ -620,12 +629,12 @@ describe("Child states", () => {
         states: { FirstJump, DoubleJump },
       }),
     },
-    messages: {
+    messages: msg => msg.build({
       jump() {},
       land() {
-        s.goto('Land');
+        msg.goto('Land');
       },
-    },
+    }),
   }));
 
   const JustLanded = create.transition<'Still'>().build(state => state.build());
@@ -638,12 +647,12 @@ describe("Child states", () => {
         states: { JustLanded, Still },
       }),
     },
-    messages: {
+    messages: msg => msg.build({
       jump() {
-        s.goto('ParentJump');
+        msg.goto('ParentJump');
       },
       land() {},
-    },
+    }),
   }));
 
   function jumpMachine() {
@@ -707,7 +716,7 @@ describe("Child states", () => {
           states: { MostInner },
         }),
       },
-      messages: {},
+      messages: msg => msg.build({}),
     }));
 
     const Outer = create.transition().build(s => s.build({
@@ -717,7 +726,7 @@ describe("Child states", () => {
           states: { Inner },
         }),
       },
-      messages: {},
+      messages: msg => msg.build({}),
     }));
 
     const MostOuter = create.transition().build(s => s.build({
@@ -727,7 +736,7 @@ describe("Child states", () => {
           states: { Outer },
         }),
       },
-      messages: {},
+      messages: msg => msg.build({}),
     }));
 
     const machine = create.machine().build({
@@ -763,27 +772,27 @@ describe("Child states", () => {
     }
 
     const MostInner = create.transition<never, Messages, Props, HiddenParentMessages>().build(
-      (state, parent) => state.build({
-        messages: {
+      state => state.build({
+        messages: msg => msg.build({
           next() {
-            parent.dispatch("forwardSecond");
+            state.parent.dispatch("forwardSecond");
           }
-        },
+        }),
       })
     );
     const Inner = create.transition<never, HiddenParentMessages, Props, TopLevelMessages>().build(
-      (state, parent) => state.build({
+      state => state.build({
         children: {
           mostInner: state.child<Messages, Props>().build({
             initial: "MostInner",
             states: { MostInner },
           }),
         },
-        messages: {
+        messages: msg => msg.build({
           forwardSecond() {
-            parent.dispatch("second");
+            state.parent.dispatch("second");
           }
-        },
+        }),
       })
     );
     const First = create.transition<"Second", Messages & TopLevelMessages, Props>().build(
@@ -794,12 +803,12 @@ describe("Child states", () => {
             states: { Inner },
           }),
         },
-        messages: {
+        messages: msg => msg.build({
           next() {},
           second() {
-            state.goto("Second");
+            msg.goto("Second");
           }
-        }
+        })
       })
     );
 
@@ -826,7 +835,7 @@ describe("Child states", () => {
     };
 
     const Inner = create.transition<never, {}, InnerProps>().build(state => state.build({
-      messages: {}
+      messages: msg => msg.build({})
     }));
 
     const Outer = create.transition<never, {}, Props>().build(state => state.build({
@@ -839,7 +848,7 @@ describe("Child states", () => {
           },
         }),
       },
-      messages: {}
+      messages: msg => msg.build({})
     }));
 
     const machine = create.machine<{}, Props>().build({
@@ -921,7 +930,7 @@ testType(() => {
         states: { Inner },
       }),
     },
-    messages: {},
+    messages: msg => msg.build({}),
   }));
 });
 
@@ -941,10 +950,10 @@ testType(() => {
           states: { Inner },
         }),
       },
-      messages: {
+      messages: msg => msg.build({
         next(_: number) {
         }
-      },
+      }),
     })
   });
 });
@@ -965,7 +974,7 @@ testType(() => {
           states: { Inner },
         }),
       },
-      messages: {},
+      messages: msg => msg.build({}),
     })
   });
 });
@@ -984,9 +993,9 @@ testType(() => {
         states: { Inner },
       }),
     },
-    messages: {
+    messages: msg => msg.build({
       next() {}
-    },
+    }),
   }));
 });
 
@@ -996,9 +1005,9 @@ testType(() => {
     next(a: string): void,
   };
   const Inner = create.transition<never, ChildMessages>().build(state => state.build({
-    messages: {
+    messages: msg => msg.build({
       next() {},
-    }
+    })
   }));
 
   create.transition().build(state => state.build({
@@ -1008,9 +1017,9 @@ testType(() => {
         states: { Inner },
       }),
     },
-    messages: {
+    messages: msg => msg.build({
       next() {}
-    },
+    }),
   }));
 });
 
@@ -1032,7 +1041,7 @@ testType(() => {
         states: { Inner },
       }),
     },
-    messages: {},
+    messages: msg => msg.build({}),
   }));
 });
 
@@ -1054,7 +1063,7 @@ testType(() => {
         states: { Inner },
       }),
     },
-    messages: {},
+    messages: msg => msg.build({}),
   }));
 });
 
@@ -1078,7 +1087,7 @@ testType(() => {
         },
       }),
     },
-    messages: {},
+    messages: msg => msg.build({}),
   }));
 });
 
@@ -1104,7 +1113,7 @@ testType(() => {
         },
       }),
     },
-    messages: {},
+    messages: msg => msg.build({}),
   }));
 });
 
@@ -1129,6 +1138,6 @@ testType(() => {
         states: { Inner },
       }),
     },
-    messages: {},
+    messages: msg => msg.build({}),
   }));
 });
