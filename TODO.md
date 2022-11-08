@@ -17,3 +17,14 @@ manually call any middleware-esque functions you want (or do `...middleware`,
 but that's dangerous bc later definitions can overwrite the middleware ones);
 real middleware support would let you automatically respond to messages before
 or after the main state does stuff with them.
+
+Originally my approach to middleware was: what if we try to merge the
+dispatchers? But this is absolutely fucked: you need to handle duplicate keys
+everywhere, which means that you need to rewrite children machine hashes to be
+arrays, and do a bunch of type-dicey merging of message dispatch functions.
+Instead, you should just have the DispatchBuildFn functions (which are entirely
+internal to st4t3 and not used by clients) return arrays of dispatchers, and
+have the machines operate on dispatcher arrays rather than on single
+dispatchers. This way you can also easily have a `.before` method and a
+`.after` method that make middleware run before or after, without insane method
+currying.
