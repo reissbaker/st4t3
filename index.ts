@@ -296,6 +296,12 @@ export class StateDispatcher<
   private readonly middleware: Array<StateDispatcher<Next, M, P, ParentMessages, any>>;
   private readonly messages: MessageDispatcher<M>;
 
+  // When a middleware or state calls goto(), eventually stop() will be called, and this state will
+  // permanently die. Future states are new instantiations of this class. We can track whether this
+  // state is dead by tracking stop() calls, which allows short-circuiting if a middleware calls
+  // goto() somewhere in the chain.
+  private _dead = false;
+
   constructor(
     args: BuildArgs<Next, M, P, C>,
     props: P,
@@ -317,6 +323,9 @@ export class StateDispatcher<
     name: Name,
     ...data: Params<M[Name]>
   ) {
+    // no-op if goto got called before you did
+    if(this._dead) return;
+
     if(this.hasChildren) {
       for(const key in this.children) {
         const child = this.children[key];
@@ -326,12 +335,16 @@ export class StateDispatcher<
 
     for(let i = 0; i < this.middleware.length; i++) {
       this.middleware[i].dispatch(name, ...data);
+      // no-op the rest of this function if a middleware called goto
+      if(this._dead) return;
     }
 
     this.messages.dispatch(name, ...data);
   }
 
   stop() {
+    this._dead = true;
+
     if(this.hasChildren) {
       for(const key in this.children) {
         const child = this.children[key];
