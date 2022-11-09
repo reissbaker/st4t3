@@ -83,12 +83,12 @@ Refactor steps:
 * [x] Refactor messages to be a function that takes the message builder object
   and returns the message hash.
 * [x] Remove `goto` from the state builder class.
-* [ ] Add the `stop` method to dispatchers + build args, and remove old special
+* [x] Add the `stop` method to dispatchers + build args, and remove old special
   casing for `stop` messages. Make sure to propagate stop calls to child
   machines and to middleware. Note that the `stop` function should take an
   optional event emitter... That way you can skip creating a fake emitter for
   the middleware.
-* [ ] Remove `stop` from the `BaseMessages` type definition.
+* [x] Remove `stop` from the `BaseMessages` type definition.
 * [ ] Update the README.
 
 Should methods defined in middleware count towards fulfilling the `Messages`
