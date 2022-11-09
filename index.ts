@@ -178,8 +178,8 @@ type CheckMiddlewareVariance<MiddlewareNext extends string, Next extends string,
   [MiddlewareNext] extends [never] ? M :
   IsStringUnionSubtype<MiddlewareNext, Next, M>;
 
-// Normally checking SmallerUnion extends BiggerUnion will return true *regardless of which is
-// larger.* You can hack around this via the behavior of Exclude, which doesn't suffer from this
+// Normally checking whether SmallerUnion extends BiggerUnion will return true *regardless of which
+// is larger.* You can hack around this via the behavior of Exclude, which doesn't suffer from this
 // flaw.
 type IsStringUnionSubtype<SmallerUnion, BiggerUnion, RetVal> = IfNever<
   Exclude<BiggerUnion, SmallerUnion>
