@@ -480,7 +480,10 @@ export class Machine<
     [K in keyof B]?: DispatcherFlyweight<StaticProps & DynamicProps, ReturnType<B[K]>>
   } = {};
 
-  private _current: StateDispatcher<any, Partial<M>, StaticProps & DynamicProps, any, any> | null = null;
+  private _current: StateDispatcher<
+    any, Partial<M>, StaticProps & DynamicProps, any, any
+  > | null = null;
+
   private _currentName: keyof B & string;
   private _everRan = false;
   private _running = false;
