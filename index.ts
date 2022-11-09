@@ -8,6 +8,17 @@ export { EventEmitter, BaseMessages };
  * =================================================================================================
  */
 
+type BuildArgs<
+  Next extends string,
+  M extends BaseMessages,
+  Props extends {},
+  C extends Children<Props, M>
+> = {
+  children?: C,
+  messages: (msg: MessageBuilder<Next, M, Props>) => MessageDispatcher<M>,
+  stop?: () => any,
+};
+
 export class StateBuilder<
   Next extends string,
   M extends BaseMessages,
@@ -19,7 +30,8 @@ export class StateBuilder<
   constructor(
     private readonly machine: Machine<Partial<M>, any, any, any, any>,
     readonly props: Props,
-    readonly parent: Parent<ParentMessages>
+    readonly parent: Parent<ParentMessages>,
+    private readonly middleware: Middleware<Next, any, Props, ParentMessages>,
   ) {}
 
   /*
@@ -38,16 +50,21 @@ export class StateBuilder<
    */
   build(): StateDispatcher<Next, M, Props, ParentMessages, {}>;
   build<C extends Children<Props, M>>(
-    args: BuildArgs<Next, M, Props, ParentMessages, C>
+    args: BuildArgs<Next, M, Props, C>
   ): StateDispatcher<Next, M, Props, ParentMessages, C>;
-  build<C extends Children<Props, M>>(args?: BuildArgs<Next, M, Props, ParentMessages, C>) {
+  build<C extends Children<Props, M>>(args?: BuildArgs<Next, M, Props, C>) {
     if(args) {
       return new StateDispatcher<Next, M, Props, ParentMessages, C>(
-        args, this.props, this.follow, this.machine, this.parent
+        args, this.props, this.follow, this.machine, this.parent, this.middleware
       );
     }
     return new StateDispatcher(
-      { messages: (msg) => msg.build({}) }, this.props, this.follow, this.machine, this.parent
+      { messages: (msg) => msg.build({}) },
+      this.props,
+      this.follow,
+      this.machine,
+      this.parent,
+      this.middleware,
     );
   }
 
@@ -70,21 +87,6 @@ export class StartData<Props extends {}, ParentMessages extends BaseMessages> {
   ) {}
 }
 
-type BuildArgs<
-  Next extends string,
-  M extends BaseMessages,
-  Props extends {},
-  ParentMessages extends BaseMessages,
-  C extends Children<Props, M>
-> = {
-  children?: C,
-  middleware?: Array<DispatchBuildFn<
-    Next, M, Props, StateDispatcher<Next, M, Props, ParentMessages, any>, ParentMessages
-  >>,
-  messages: (msg: MessageBuilder<Next, M, Props>) => MessageDispatcher<M>,
-  stop?: () => any,
-};
-
 type Children<Props extends {}, ParentMessages extends BaseMessages> = {
   [key: string]: Machine<any, any, any, Props, Parent<ParentMessages>>,
 };
@@ -93,16 +95,45 @@ class DispatchBuilder<
   Next extends string,
   M extends BaseMessages = {},
   Props extends {} = {},
-  ParentMessages extends BaseMessages = {}
+  ParentMessages extends BaseMessages = {},
+  CurrentMiddleware extends {} = {},
 > {
-  build(): DispatchBuildFn<never, {}, {}, StateDispatcher<Next, {}, {}, ParentMessages, never>, ParentMessages>;
-  build<Dispatcher extends StateDispatcher<Next, M, Props, ParentMessages, any>>(
+  constructor(
+    private readonly _middleware: Middleware<Next, any, Props, ParentMessages> = {}
+  ) {}
+
+  // Override for empty build constructor: ultra shorthand syntax
+  build(): DispatchBuildFn<
+    Next, {}, {}, StateDispatcher<Next, {}, {}, ParentMessages, never>, ParentMessages
+  >;
+
+  // Override for actually providing a real builder function
+  build<Dispatcher extends StateDispatcher<
+    Next,
+    MessagesForDispatch<M, CurrentMiddleware>,
+    Props,
+    ParentMessages,
+    any
+  >>(
     curryBuildFn: (
       builder: StateBuilder<Next, M, Props, ParentMessages>
     ) => Dispatcher
-  ): DispatchBuildFn<Next, M, Props, Dispatcher, ParentMessages>;
+  ): DispatchBuildFn<
+    Next,
+    MessagesForDispatch<M, CurrentMiddleware>,
+    Props,
+    Dispatcher,
+    ParentMessages
+  >;
 
-  build<Dispatcher extends StateDispatcher<Next, M, Props, ParentMessages, any>>(
+  // The implementation for the two overrides
+  build<Dispatcher extends StateDispatcher<
+    Next,
+    MessagesForDispatch<M, CurrentMiddleware>,
+    Props,
+    ParentMessages,
+    any
+  >>(
     curryBuildFn?: (
       builder: StateBuilder<Next, M, Props, ParentMessages>
     ) => Dispatcher
@@ -113,10 +144,75 @@ class DispatchBuilder<
           return state.build({ messages: msg => msg.build({}) });
         }) as ((builder: StateBuilder<Next, M, Props, ParentMessages>) => Dispatcher);
       }
-      return curryBuildFn(new StateBuilder<Next, M, Props, ParentMessages>(machine, props, parent));
+      return curryBuildFn(
+        new StateBuilder<Next, M, Props, ParentMessages>(machine, props, parent, this._middleware)
+      );
     };
   }
+
+  middleware<NewMiddleware extends Middleware<any, any, Props, ParentMessages>>(
+    middleware: CheckMiddlewareVariance<
+      MiddlewareNext<NewMiddleware>,
+      Next,
+      NoDuplicateKeys<NewMiddleware, CurrentMiddleware>
+    >
+  ): DispatchBuilder<
+    Next,
+    M,
+    Props,
+    ParentMessages,
+    CurrentMiddleware & NewMiddleware
+  > {
+    return new DispatchBuilder({
+      ...this._middleware,
+      ...middleware,
+    });
+  }
 }
+
+type MiddlewareMessages<T> = T extends Middleware<any, infer M, any, any> ? M : never;
+type MiddlewareNext<T> = T extends Middleware<infer N, any, any, any> ? N : never;
+type MessagesForDispatch<M extends BaseMessages, CurrentMiddleware> =
+    Omit<M, keyof MiddlewareMessages<CurrentMiddleware>>
+      & OptionalOverride<MiddlewareMessages<CurrentMiddleware>, M>;
+
+type CheckMiddlewareVariance<MiddlewareNext extends string, Next extends string, M> =
+  [MiddlewareNext] extends [never] ? M :
+  IsStringUnionSubtype<MiddlewareNext, Next, M>;
+
+// Normally checking SmallerUnion extends BiggerUnion will return true *regardless of which is
+// larger.* You can hack around this via the behavior of Exclude, which doesn't suffer from this
+// flaw.
+type IsStringUnionSubtype<SmallerUnion, BiggerUnion, RetVal> = IfNever<
+  Exclude<BiggerUnion, SmallerUnion>
+> extends false ? RetVal : never;
+
+// Checking for never extension seems broken. A workaround is wrapping with an array and checking
+// for never arrays
+type IfNever<T> = [T] extends [never] ? true : false;
+
+type Middleware<
+  Next extends string,
+  M extends BaseMessages,
+  Props extends {},
+  ParentMessages extends BaseMessages,
+> = {
+  [key: string]: DispatchBuildFn<
+    Next,
+    M,
+    Props,
+    StateDispatcher<Next, M, Props, ParentMessages, any>,
+    ParentMessages
+  >
+};
+
+type NoDuplicateKeys<T, U> = IfNever<U> extends true ? T :
+  IfNever<T> extends true ? T : keyof T extends keyof U ? never : T;
+
+type OptionalOverride<Middleware extends {}, Overrides extends {}> =
+  {} extends Middleware ? {} : {
+    [K in keyof Middleware]?: K extends keyof Overrides ? Overrides[K] : never;
+  };
 
 export function transition<
   Next extends string = never,
@@ -203,15 +299,18 @@ export class StateDispatcher<
   private readonly messages: MessageDispatcher<M>;
 
   constructor(
-    args: BuildArgs<Next, M, P, any, C>,
+    args: BuildArgs<Next, M, P, C>,
     props: P,
     private readonly follow: FollowHandler,
     machine: Machine<M, any, any, any, any>,
     parent: Parent<ParentMessages>,
+    middleware: Middleware<Next, any, P, any>,
   ) {
     this.children = args.children || {};
     this.hasChildren = !!args.children;
-    this.middleware = (args.middleware || []).map(buildFn => buildFn(machine, props, parent, null));
+    this.middleware = Object.values(middleware || {}).map(buildFn => {
+      return buildFn(machine, props, parent, null)
+    });
     this.messages = args.messages(new MessageBuilder(machine));
     this._stop = args.stop;
   }

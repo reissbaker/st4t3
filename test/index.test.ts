@@ -1194,3 +1194,159 @@ testType(() => {
     messages: msg => msg.build({}),
   }));
 });
+
+testType(() => {
+  // It should be allowed to have middleware that responds to a superset of messages and the same
+  // props
+
+  type MiddlewareMessages = {
+    print(): void,
+    save(): void,
+  };
+
+  type Props = {
+    id: string,
+    firstName: string,
+  };
+  type Messages = {
+    save(): void,
+  };
+
+  const Middleware = create.transition<never, MiddlewareMessages, Props>().build(state => {
+    return state.build({
+      messages: msg => msg.build({
+        print() {
+          console.log(state.props);
+        },
+        save() {
+        },
+      }),
+    });
+  });
+
+  create.transition<
+    never, Messages, Props
+  >().middleware({ Middleware }).build(state => state.build({
+    messages: msg => msg.build({
+      save() {
+        console.log('saving...', state.props.id, state.props.firstName);
+      }
+    }),
+  }));
+});
+
+testType(() => {
+  // It should be allowed to have middleware that responds to a subset of messages and a subset of
+  // props
+
+  type MiddlewareProps = {
+    id: string,
+  };
+  type MiddlewareMessages = {
+    print(): void,
+  };
+
+  type Props = MiddlewareProps & {
+    firstName: string,
+  };
+  type Messages = MiddlewareMessages & {
+    save(): void,
+  };
+
+  const Middleware = create.transition<never, MiddlewareMessages, MiddlewareProps>().build(state => {
+    return state.build({
+      messages: msg => msg.build({
+        print() {
+          console.log(state.props);
+        }
+      }),
+    });
+  });
+
+  create.transition<
+    never, Messages, Props
+  >().middleware({ Middleware }).build(state => state.build({
+    messages: msg => msg.build({
+      print() {
+        console.log("printing first name:", state.props.firstName);
+      },
+      save() {
+        console.log('saving...', state.props.id, state.props.firstName);
+      }
+    }),
+  }));
+});
+
+testType(() => {
+  // It should be an error to have middleware that responds to a superset of props
+
+  type Props = {
+    id: string,
+  };
+  type MiddlewareProps = Props & {
+    firstName: string,
+  };
+
+  type Messages = {
+    print(): void,
+    save(): void,
+  };
+
+  const Middleware = create.transition<never, Messages, MiddlewareProps>().build(state => {
+    return state.build({
+      messages: msg => msg.build({
+        print() {
+          console.log(state.props);
+        },
+        save() {},
+      }),
+    });
+  });
+
+  create.transition<
+    never, Messages, Props
+    //@ts-expect-error
+  >().middleware({ Middleware }).build(state => state.build({
+    messages: msg => msg.build({
+      print() {},
+      save() {
+        console.log('saving...', state.props.id);
+      }
+    }),
+  }));
+});
+
+testType(() => {
+  // It should be allowed to have middleware that transitions to a subset of states
+  type MiddlewareTransition = "Next";
+  type AllTransitions = MiddlewareTransition | "Final";
+
+  const Middleware = create.transition<MiddlewareTransition>().build();
+  create.transition<AllTransitions>().middleware({ Middleware }).build();
+});
+
+testType(() => {
+  // It should be banned to have middleware that transitions to a superset of states
+  type AllTransitions = "Final";
+  type MiddlewareTransition = AllTransitions | "Next";
+
+  const Middleware = create.transition<MiddlewareTransition>().build();
+  //@ts-expect-error
+  create.transition<AllTransitions>().middleware({ Middleware }).build();
+});
+
+testType(() => {
+  // It should be allowed to have multiple calls to .middleware with hashes of different keys
+  const A = create.transition().build();
+  const B = create.transition().build();
+
+  create.transition().middleware({ A }).middleware({ B }).build();
+});
+
+testType(() => {
+  // It should be banned to have multiple calls to .middleware with hashes of the same keys
+  const A = create.transition().build();
+
+  //@ts-expect-error
+  create.transition().middleware({ A }).middleware({ A });
+});
