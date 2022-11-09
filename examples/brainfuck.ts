@@ -17,6 +17,7 @@ type Messages = {
   readByte(): void;
   writeByte(): void;
   finish(): void;
+  nextInstruction(): void;
 };
 
 type Props = {
@@ -99,6 +100,11 @@ const Running = create.transition<HaltStates | "Running", Messages, Props>().bui
       finish() {
         msg.goto("Success");
       },
+      nextInstruction() {
+        msg.goto("Running", {
+          instruction: state.props.instruction + 1,
+        });
+      },
     }),
   });
 });
@@ -158,7 +164,7 @@ export function brainfuck(program: string, input: string[]) {
       default:
         // Brainfuck is specified to ignore unknown characters; so, do nothing
     }
-    machine.props().instruction++;
+    machine.dispatch("nextInstruction");
   }
   machine.dispatch("finish");
 
