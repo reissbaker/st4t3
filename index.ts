@@ -82,6 +82,7 @@ type BuildArgs<
     Next, M, Props, StateDispatcher<Next, M, Props, ParentMessages, any>, ParentMessages
   >>,
   messages: (msg: MessageBuilder<Next, M, Props>) => MessageDispatcher<M>,
+  stop?: () => any,
 };
 
 type Children<Props extends {}, ParentMessages extends BaseMessages> = {
@@ -145,12 +146,8 @@ type DispatchBuildFn<
 export class Parent<M extends BaseMessages> {
   constructor(private readonly dispatcher: StateDispatcher<any, M, any, any, any>) {}
 
-  // Allows dispatching any message except the system-reserved "stop" message
-  dispatch<Name extends Exclude<keyof M, "stop">>(
-    name: Name,
-    ...data: Name extends "stop" ? never : Params<M[Name]>
-  ) {
-    this.dispatcher.dispatchExceptStop(
+  dispatch<Name extends keyof M>(name: Name, ...data: Params<M[Name]>) {
+    this.dispatcher.dispatch(
       name,
       ...data
     );
@@ -200,12 +197,14 @@ export class StateDispatcher<
 > {
   readonly hasChildren: boolean; // dumb micro optimization for cpu branch predictor
   readonly children: Children<P, M>;
+
+  private readonly _stop: (() => any) | undefined;
   private readonly middleware: Array<StateDispatcher<Next, M, P, ParentMessages, any>>;
   private readonly messages: MessageDispatcher<M>;
 
   constructor(
     args: BuildArgs<Next, M, P, any, C>,
-    private readonly props: P,
+    props: P,
     private readonly follow: FollowHandler,
     machine: Machine<M, any, any, any, any>,
     parent: Parent<ParentMessages>,
@@ -214,12 +213,12 @@ export class StateDispatcher<
     this.hasChildren = !!args.children;
     this.middleware = (args.middleware || []).map(buildFn => buildFn(machine, props, parent, null));
     this.messages = args.messages(new MessageBuilder(machine));
+    this._stop = args.stop;
   }
 
   dispatch<Name extends keyof M>(
     name: Name,
-    emitter: EventEmitter<StateEvents<P>> | undefined,
-    ...data: Name extends "stop" ? [] : Params<M[Name]>
+    ...data: Params<M[Name]>
   ) {
     if(this.hasChildren) {
       for(const key in this.children) {
@@ -229,22 +228,27 @@ export class StateDispatcher<
     }
 
     for(let i = 0; i < this.middleware.length; i++) {
-      this.middleware[i].dispatch(name, new EventEmitter(), ...data);
+      this.middleware[i].dispatch(name, ...data);
     }
 
     this.messages.dispatch(name, ...data as any);
-
-    if(name === "stop") {
-      if(emitter) emitter.emit("stop", this.props);
-      this.follow.clear();
-    }
   }
 
-  dispatchExceptStop<Name extends Exclude<keyof M, "stop">>(
-    name: Name,
-    ...data: Name extends "stop" ? [] : Params<M[Name]>
-  ) {
-    this.dispatch(name, undefined, ...data);
+  stop() {
+    if(this.hasChildren) {
+      for(const key in this.children) {
+        const child = this.children[key];
+        child.stop();
+      }
+    }
+
+    for(let i = 0; i < this.middleware.length; i++) {
+      this.middleware[i].stop();
+    }
+
+    if(this._stop) this._stop();
+
+    this.follow.clear();
   }
 }
 
@@ -403,10 +407,7 @@ export class Machine<
       }
     }
 
-    // Manually dispatch and emit on the child! If you call your own dispatch on stop, it'll think
-    // the whole machine is stopping.
-    this._current?.dispatch("stop", this._dispatcherEventMap[this._currentName]);
-
+    this._stopCurrent();
     this._currentName = next;
     this._createAndStart(next, this._props);
   }
@@ -433,21 +434,20 @@ export class Machine<
     // This check is necessary for stop idempotence! Otherwise subsequent calls will explode when
     // dispatch asserts that the machine is running.
     if(!this._running) return;
-    this.dispatch("stop");
+
+    this._stopCurrent();
+    this._running = false;
   }
 
   dispatch<Name extends keyof M>(
     name: Name,
-    ...data: Name extends "stop" ? [] : Params<M[Name]>
+    ...data: Params<M[Name]>
   ) {
     // Boilerplate safety
     this._assertRunning();
     if(!this._current) throw new Error("Internal error: _current was never initialized");
 
-    this._current.dispatch(name, this._dispatcherEventMap[this._currentName], ...data);
-
-    // Special case handling for the stop event: we must track run state
-    if(name === "stop") this._running = false;
+    this._current.dispatch(name, ...data);
   }
 
   events<Name extends keyof B>(
@@ -497,6 +497,15 @@ export class Machine<
     }
 
     if(dispatcherEvent) dispatcherEvent.emit("start", props);
+  }
+
+  private _stopCurrent() {
+    if(!this._current) throw new Error("Internal error: _current was never initialized");
+    if(!this._props) throw new Error("Internal error: _props was never initialized");
+
+    this._current.stop();
+    const dispatcherEvent = this._dispatcherEventMap[this._currentName];
+    if(dispatcherEvent) dispatcherEvent.emit("stop", this._props);
   }
 
   private _assertRunning() {

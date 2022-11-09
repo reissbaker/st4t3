@@ -276,6 +276,59 @@ describe("State machine ultra shorthand syntax", () => {
   });
 });
 
+describe("State machines using the stop API", () => {
+  type Messages = {
+    next(): void;
+  };
+  const emitter = new EventEmitter<{ stop: undefined }>();
+  const Initial = create.transition<"Final", Messages>().build(state => state.build({
+    messages: msg => msg.build({
+      next() {
+        msg.goto("Final");
+      }
+    }),
+    stop() {
+      emitter.emit("stop", undefined);
+    }
+  }));
+  const Final = create.transition().build();
+
+  function machine() {
+    return create.machine<Messages>().build({
+      initial: "Initial",
+      states: { Initial, Final },
+    });
+  }
+
+  type MachineType = ReturnType<typeof machine>;
+
+  type Should = {
+    machine: MachineType,
+  };
+
+  beforeEach<Should>(ctx => {
+    ctx.machine = machine();
+  });
+
+  it<Should>("call the stop function on machine stop", ({ machine }) => {
+    const spy = vi.fn();
+    emitter.once("stop", spy);
+    machine.start({});
+    expect(spy).toHaveBeenCalledTimes(0);
+    machine.stop();
+    expect(spy).toHaveBeenCalledOnce();
+  });
+
+  it<Should>("call the stop function on transition", ({ machine }) => {
+    const spy = vi.fn();
+    emitter.once("stop", spy);
+    machine.start({});
+    expect(spy).toHaveBeenCalledTimes(0);
+    machine.dispatch("next");
+    expect(spy).toHaveBeenCalledOnce();
+  });
+});
+
 describe("State machines using the follow API", () => {
   type EventMapping = {
     skip: void,
