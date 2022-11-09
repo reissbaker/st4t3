@@ -74,7 +74,7 @@ export class StateBuilder<
   }
 
   dispatch<Name extends keyof M>(name: Name, ...data: Params<M[Name]>) {
-    this.machine.dispatch(name, ...data as any);
+    this.machine.dispatch(name, ...data);
   }
 
   child<
@@ -328,7 +328,7 @@ export class StateDispatcher<
       this.middleware[i].dispatch(name, ...data);
     }
 
-    this.messages.dispatch(name, ...data as any);
+    this.messages.dispatch(name, ...data);
   }
 
   stop() {
