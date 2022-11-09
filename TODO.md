@@ -106,6 +106,7 @@ Refactor steps:
 * [x] Enforce middleware can't `goto` states your main state doesn't declare
 * [x] Make middleware type-aware so that you can optionally skip declaring
   message handlers that your middleware implements for you.
-* [ ] Make middleware short-circuit the rest of the chain if it calls `goto`.
+* [x] Make middleware short-circuit the rest of the chain if it calls `goto`.
+* [ ] Add middleware tests.
 * [ ] Update the README.
 
