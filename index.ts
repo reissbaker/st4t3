@@ -85,13 +85,6 @@ export class StateBuilder<
   }
 }
 
-export class StartData<Props extends {}, ParentMessages extends BaseMessages> {
-  constructor(
-    readonly props: Props,
-    readonly parent: Parent<ParentMessages>,
-  ) {}
-}
-
 type Children<Props extends {}, ParentMessages extends BaseMessages> = {
   [key: string]: Machine<any, any, any, Props, Parent<ParentMessages>>,
 };
