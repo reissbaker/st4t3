@@ -98,4 +98,8 @@ Okay. This means StateBuilders need a `middleware` function that alters what
 `M` has to be, so that you can do correct type inference for `messages`.
 
 Dispatchers need to be able to tell if they're the current dispatcher according
-to the machine, so that they can short-circuit if `goto` gets called.
+to the machine, so that they can short-circuit if `goto` gets called. You can
+probably do this by tracking `stop()` calls in the dispatcher: since
+dispatchers are instantiated per-`start()` call, `stop()` is terminal: you will
+never restart a stopped dispatcher. If you've been stopped, short-circuit all
+dispatch calls.
