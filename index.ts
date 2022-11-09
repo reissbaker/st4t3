@@ -176,6 +176,7 @@ type MessagesForDispatch<M extends BaseMessages, CurrentMiddleware> =
 
 type CheckMiddlewareVariance<MiddlewareNext extends string, Next extends string, M> =
   [MiddlewareNext] extends [never] ? M :
+  IfEquals<MiddlewareNext, Next> extends true ? M :
   IsStringUnionSubtype<MiddlewareNext, Next, M>;
 
 // Normally checking whether SmallerUnion extends BiggerUnion will return true *regardless of which
@@ -184,6 +185,12 @@ type CheckMiddlewareVariance<MiddlewareNext extends string, Next extends string,
 type IsStringUnionSubtype<SmallerUnion, BiggerUnion, RetVal> = IfNever<
   Exclude<BiggerUnion, SmallerUnion>
 > extends false ? RetVal : never;
+
+// Checking strict string union *subtyping* doesn't cover the case in which two string types are
+// exactly equal. If they are, you probably also want to have it succeed.
+type IfEquals<T, U, Y=true, N=false> =
+  (<G>() => G extends T ? 1 : 2) extends
+  (<G>() => G extends U ? 1 : 2) ? Y : N;
 
 // Checking for never extension seems broken. A workaround is wrapping with an array and checking
 // for never arrays
