@@ -42,11 +42,16 @@ export class StateBuilder<
    * hashes you return have *at least* the expected keys, but won't enforce that extra keys are
    * errors. Since most of the type safety boundaries in this library are more or less "you typed
    * the same thing over here as you typed over there," not checking for extra keys is a pretty bad
-   * error: it means that typos typecheck.
+   * error: it means that typos typecheck, and that if you have e.g. longMispelledName instead of
+   * longMisspelledName as a message handler your code will silently fail. Forcing you to call
+   * .build({ ... }) ensures you don't miss keys (and if we don't make .build({ ... }) return
+   * special objects, you could forget to call it and instead return the raw hashes, which would
+   * once again potentially silently fail).
    *
    * IMO, making typos fail typechecking is more useful than making it super easy to manipulate the
-   * arguments programmatically in middleware functions. To enable better middleware,
-   * StateDispatchers have a `merge` function that does what it sounds like.
+   * arguments programmatically. We've added explicit support for middleware, which accomplishes
+   * much of the same tasks, rather than making it simple-but-error-prone to manipulate the output
+   * of the builder functions.
    */
   build(): StateDispatcher<Next, M, Props, ParentMessages, {}>;
   build<C extends Children<Props, M>>(
