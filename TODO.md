@@ -96,3 +96,6 @@ spec from `transition<Messages>`? Honestly... yes, probably. Sigh. Middleware
 should be a hash instead of an array, then, so you can skip the `as const` bs.
 Okay. This means StateBuilders need a `middleware` function that alters what
 `M` has to be, so that you can do correct type inference for `messages`.
+
+Dispatchers need to be able to tell if they're the current dispatcher according
+to the machine, so that they can short-circuit if `goto` gets called.
