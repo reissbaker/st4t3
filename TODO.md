@@ -100,7 +100,8 @@ Refactor steps:
   casing for `stop` messages. Make sure to propagate stop calls to child
   machines and to middleware. Note that the `stop` function should take an
   optional event emitter... That way you can skip creating a fake emitter for
-  the middleware.
+  the middleware. Nvm, just remove the entire idea of passing the emitters in,
+  and do the emits in the machine.
 * [x] Remove `stop` from the `BaseMessages` type definition.
 * [x] Make middleware use hashes instead of arrays
 * [x] Enforce middleware can't `goto` states your main state doesn't declare
@@ -109,4 +110,10 @@ Refactor steps:
 * [x] Make middleware short-circuit the rest of the chain if it calls `goto`.
 * [ ] Add middleware tests.
 * [ ] Update the README.
+
+Question: currently, message handlers can be undefined; is this actually useful
+or is this a now-unused tsc-appeasing remnant of the old optional `stop`
+message? It seems like they shouldn't be allowed to be undefined, and it also
+seems like forcing them to be functions would clean up a bit of the type
+hoop-jumping around `Params` vs `Parameters`.
 
