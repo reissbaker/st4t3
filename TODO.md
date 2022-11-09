@@ -78,19 +78,6 @@ create.transition<Messages, Props>().build(state => {
 });
 ```
 
-Refactor steps:
-
-* [x] Refactor messages to be a function that takes the message builder object
-  and returns the message hash.
-* [x] Remove `goto` from the state builder class.
-* [x] Add the `stop` method to dispatchers + build args, and remove old special
-  casing for `stop` messages. Make sure to propagate stop calls to child
-  machines and to middleware. Note that the `stop` function should take an
-  optional event emitter... That way you can skip creating a fake emitter for
-  the middleware.
-* [x] Remove `stop` from the `BaseMessages` type definition.
-* [ ] Update the README.
-
 Should methods defined in middleware count towards fulfilling the `Messages`
 spec from `transition<Messages>`? Honestly... yes, probably. Sigh. Middleware
 should be a hash instead of an array, then, so you can skip the `as const` bs.
@@ -103,3 +90,22 @@ probably do this by tracking `stop()` calls in the dispatcher: since
 dispatchers are instantiated per-`start()` call, `stop()` is terminal: you will
 never restart a stopped dispatcher. If you've been stopped, short-circuit all
 dispatch calls.
+
+Refactor steps:
+
+* [x] Refactor messages to be a function that takes the message builder object
+  and returns the message hash.
+* [x] Remove `goto` from the state builder class.
+* [x] Add the `stop` method to dispatchers + build args, and remove old special
+  casing for `stop` messages. Make sure to propagate stop calls to child
+  machines and to middleware. Note that the `stop` function should take an
+  optional event emitter... That way you can skip creating a fake emitter for
+  the middleware.
+* [x] Remove `stop` from the `BaseMessages` type definition.
+* [x] Make middleware use hashes instead of arrays
+* [x] Enforce middleware can't `goto` states your main state doesn't declare
+* [x] Make middleware type-aware so that you can optionally skip declaring
+  message handlers that your middleware implements for you.
+* [ ] Make middleware short-circuit the rest of the chain if it calls `goto`.
+* [ ] Update the README.
+
