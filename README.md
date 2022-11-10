@@ -65,7 +65,7 @@ export const Jump = create.transition<"Land", Pick<Messages, "land">>().build(st
         // Since you declared you can transition to the "Land" state, you can call
         // that here. The TypeScript compiler ensures you can only `goto`
         // states you've defined in the `transition` function above
-        state.goto("Land");
+        msg.goto("Land");
       },
     }),
 
@@ -89,7 +89,7 @@ export const Land = create.transition<"Jump", Pick<Messages, "jump">>().build(st
   return state.build({
     messages: msg => msg.build({
       jump() {
-        state.goto("Jump");
+        msg.goto("Jump");
       }
     }),
   });
@@ -173,7 +173,7 @@ const Jump = create.transition<"Land", JumpMessages, JumpProps>().build(state =>
   console.log(`Jumped with power ${state.props.jumpPower}`);
   return state.build({
     messages: msg => msg.build({
-      land() { state.goto("Land") }
+      land() { msg.goto("Land") }
     })
   });
 });
@@ -185,7 +185,7 @@ const Land = create.transition<"Jump", LandMessages, LandProps>().build(state =>
   else console.log("Unbouncy land");
   return state.build({
     messages: msg => msg.build({
-      jump() { state.goto("Jump"); }
+      jump() { msg.goto("Jump"); }
     })
   });
 });
@@ -231,7 +231,7 @@ const Still = create.transition<'Move', Pick<Messages, 'move'>, Props>().build(s
   return state.build({
     messages: msg => msg.build({
       move(direction) {
-        state.goto('Move', { direction });
+        msg.goto('Move', { direction });
       },
     }),
   });
@@ -242,11 +242,11 @@ const Move = create.transition<'Still' | 'Move', Messages, Props>().build(state 
 
   return state.build({
     still() {
-      state.goto('Still');
+      msg.goto('Still');
     },
     move(direction) {
       if(direction === state.props.direction) return;
-      state.goto('Move', { direction });
+      msg.goto('Move', { direction });
     },
   });
 });
@@ -279,7 +279,7 @@ machine.start({
 machine.jump();  // Prints "Jumped with power 5.6"
 ```
 
-Note that both static props and regular props can be updated via `state.goto`;
+Note that both static props and regular props can be updated via `msg.goto`;
 the only difference is that static props don't need to be passed into
 `machine.start`. This can be useful for nesting machines, where the inner state
 machine has extra props that the outer one doesn't need to be aware of.
@@ -314,16 +314,27 @@ either from other libraries (Node file watching?) or the DOM. You might try to
 do something like this:
 
 ```typescript
-const State = create.transition<"Next">().build(state => {
+type Messages = {
+  next(): void;
+};
+
+const State = create.transition<"Next", Messages>().build(state => {
   const buffer = [];
   emitter.on("event", (data) => {
     if(data === "next") {
-      state.goto("Next");
+      state.dispatch("next");
       return;
     }
     buffer.push(data);
   });
-  return state.build();
+
+  return state.build({
+    messages: msg => msg.build({
+      next() {
+        msg.goto("Next");
+      }
+    }),
+  });
 });
 ```
 
@@ -344,16 +355,27 @@ stops or is transitioned away from. A fixed version of the previous example
 would look like:
 
 ```typescript
-const State = create.transition<"Next">().build(state => {
+type Messages = {
+  next(): void,
+};
+
+const State = create.transition<"Next", Messages>().build(state => {
   const buffer = [];
   state.follow.on(emitter, "event", (data) => {
     if(data === "next") {
-      state.goto("Next");
+      state.dispatch("next");
       return;
     }
     buffer.push(data);
   });
-  return state.build();
+
+  return state.build({
+    messages: msg => msg.build({
+      next() {
+        msg.goto("Next");
+      },
+    }),
+  });
 });
 ```
 
@@ -494,7 +516,7 @@ const InitialJump = create.transition<"DoubleJump", Pick<Messages, "jump">>().bu
   return state.build({
     messages: msg => msg.build({
       jump() {
-        state.goto("DoubleJump");
+        msg.goto("DoubleJump");
       }
     }),
   });
@@ -515,7 +537,7 @@ const Jump = create.transition<"Land", Pick<Messages, "land">>().build(state => 
       }),
     },
     messages: msg => msg.build({
-      land() { state.goto("Land"); },
+      land() { msg.goto("Land"); },
     }),
   });
 });
@@ -524,7 +546,7 @@ const Land = create.transition<"Jump", Pick<Messages, "jump">>().build(state => 
   return state.build({
     messages: msg => msg.build({
       jump() {
-        state.goto("Jump");
+        msg.goto("Jump");
       },
     })
   });
@@ -776,7 +798,7 @@ machine.dispatch("next"); // Prints "Skipped" and transitions to next
 Middleware needs to fulfill a specific type contract, which is checked by the
 TypeScript compiler:
 
-1. If it transitions to another state via `state.goto(...)`, its specifications
+1. If it transitions to another state via `msg.goto(...)`, its specifications
    for which states it transitions to must be a subset or equal to the states
    that the calling state transitions to. To put it another way: if the
    middleware was declared with `create.transition<"Next">()`, the state using
@@ -818,7 +840,7 @@ example:
 machine.goto('Land');
 ```
 
-This works identically to `state.goto`, except that by default it will ignore
+This works identically to `msg.goto`, except that by default it will ignore
 the call if you're already in the specified state; e.g. if you're currently in
 state `Land`, calling `machine.goto('Land')` is a no-op. If you want to force
 it to rerun the `Land` initialization, use `machine.force('Land')`.
@@ -832,7 +854,7 @@ const Land = create.transition<'Land' | 'Jump', /* ... */>().build(state => {
   return state.build({
     messages: msg => msg.build({
       someMessage() {
-        state.goto('Land');
+        msg.goto('Land');
       }
     }),
   });
@@ -842,7 +864,7 @@ const Land = create.transition<'Land' | 'Jump', /* ... */>().build(state => {
 This difference is purely for developer experience: typically when you call
 `machine.goto`, what you mean to do is to ensure the machine is in that state;
 you aren't necessarily trying to re-run that state if it's already there.
-Whereas the only use case for calling `state.goto('YOUR_OWN_NAME')` is to
+Whereas the only use case for calling `msg.goto('YOUR_OWN_NAME')` is to
 re-run initialization code; if you didn't mean to do that, you could instead
 simply do nothing (since you know you're already in your own state).
 
