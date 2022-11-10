@@ -493,6 +493,9 @@ export class Machine<
 
   protected _parent: ParentType | null = null;
 
+  private _dispatchQueue: Array<{ name: keyof M, data: any[] }> = [];
+  private _isStartingNewState = false;
+
   constructor(args: MachineArgs<M, StaticProps, B, any>) {
     this._initial = this._currentName = args.initial;
     this._staticProps = args.props;
@@ -563,8 +566,15 @@ export class Machine<
     name: Name,
     ...data: Params<M[Name]>
   ) {
-    // Boilerplate safety
     this._assertRunning();
+
+    // If you're starting a new state, queue the dispatch. The state creation code will pick up once
+    // the state creation is done.
+    if(this._isStartingNewState) {
+      this._dispatchQueue.push({ name, data });
+      return;
+    }
+
     if(!this._current) throw new Error("Internal error: _current was never initialized");
 
     this._current.dispatch(name, ...data);
@@ -600,9 +610,12 @@ export class Machine<
 
   private _createAndStart<N extends keyof B>(name: N & string, props: StaticProps & DynamicProps) {
     const stateBuilder = this.builders[name];
-    const current = stateBuilder(this, props, this._parent as any, null as any);
-    this._current = current;
     this._currentName = name;
+
+    this._isStartingNewState = true;
+    const current = this._current = stateBuilder(this, props, this._parent as any, null as any);
+    this._isStartingNewState = false;
+
     const dispatcherEvent = this._dispatcherEventMap[name];
 
     // Hydrate child machines
@@ -614,6 +627,15 @@ export class Machine<
         child._hydrate(parent, events);
         child.start(props);
       }
+    }
+
+    // Dequeue from the dispatch queue if necessary
+    if(this._dispatchQueue.length !== 0) {
+      for(let i = 0; i < this._dispatchQueue.length; i++) {
+        const queued = this._dispatchQueue[i];
+        this.dispatch(queued.name, ...queued.data as any);
+      }
+      this._dispatchQueue = [];
     }
 
     if(dispatcherEvent) dispatcherEvent.emit("start", props);
