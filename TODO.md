@@ -117,3 +117,17 @@ message? It seems like they shouldn't be allowed to be undefined, and it also
 seems like forcing them to be functions would clean up a bit of the type
 hoop-jumping around `Params` vs `Parameters`.
 
+Future work: middleware right now is nice, but it would be useful to have a few
+more knobs to turn:
+
+* Middleware should be able to run before or after the main state; right now it
+  always runs before. Can accomplish this by making the `.middleware` function
+  require a machine-like `{ states: { Middleware } }` hash rather than a plain
+  `{ Middleware }` hash, so that you can have overloads on it where you do e.g.
+  `{ before: { states: { Beforeware } }, after: { states: { Afterware } }`.
+* Would be very nice to have arbitrary functions as middleware, of type
+  signature: `(msg: keyof Messages, props: Props, ...data: /* ... */) => any`.
+  With the structure from above, you could add a `functions` key to the hash,
+  and pass an array of middleware functions. Since they're so arbitrary, they
+  don't change the main states type at all (e.g. you still need to define all
+  of `Messages`); think of them like `method_missing` from Ruby.
