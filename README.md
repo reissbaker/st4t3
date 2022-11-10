@@ -711,6 +711,15 @@ const machine = create.machine<Messages, Props>().build({
 });
 ```
 
+Note that, like machine creation, the `.middleware` function takes an object
+literal rather than an array. Although object ordering is only [recently-defined
+in the spec](https://github.com/tc39/ecma262/pull/1791), in practice every
+major browser maintained consistent insertion-order traversal for years prior
+to this spec change, as long as you didn't use exotic host objects, modify the
+prototype of an object mid-traversal, use the magic `Proxy` objects, or a few
+other arcane things. Just use regular hashes for this and you'll be fine!
+Pretend it's an array.
+
 Middleware can also do state transitions, just like ordinary states. If
 middleware causes a state transition, it will prevent the rest of the chain
 from running; e.g.:
