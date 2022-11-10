@@ -108,7 +108,7 @@ Refactor steps:
 * [x] Make middleware type-aware so that you can optionally skip declaring
   message handlers that your middleware implements for you.
 * [x] Make middleware short-circuit the rest of the chain if it calls `goto`.
-* [ ] Add middleware tests.
+* [x] Add middleware tests.
 * [ ] Update the README.
 
 Question: currently, message handlers can be undefined; is this actually useful
