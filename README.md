@@ -14,9 +14,10 @@ file to get full type safety. There are no runtime dependencies and the code is
   libraries](#following-events-from-other-libraries)
 * [Events](#events)
 * [Nested state machines](#nested-state-machines)
-* [Type safety](#type-safety)
+* [Middleware](#middleware)
 * [Manually transitioning states from the
   machine](#manually-transitioning-states-from-the-machine)
+* [Type safety](#type-safety)
 * [Performance](#performance)
 * [Comparison to alternatives](#comparison-to-alternatives)
 
@@ -675,6 +676,129 @@ Dispatching to a parent is equivalent to dispatching to the parent's machine;
 the parent will get the message, and it will be forwarded to all children as
 well.
 
+# Middleware
+
+Middleware allows you to extract commonly-used message handling and reuse it
+across many states. Middleware objects are just states, constructed just like
+any other state; for example:
+
+```typescript
+type Props = {
+  msg: string;
+};
+
+type Messages = {
+  print(): void;
+};
+
+const Middleware = create.transition<never, Messages, Props>().build(state => state.build({
+  messages: msg => msg.build({
+    print() {
+      console.log(state.props.msg);
+    }
+  }),
+}));
+
+// It's okay to not define `print` here, since we're using middleware that defines it for us
+const State = create.transition<never, Messages, Props>().middleware({ Middleware }).build();
+
+const machine = create.machine<Messages, Props>().build({
+  initial: "State",
+
+  // You don't need to pass Middleware in here, since it's only being used as
+  // middleware and can't be independently transitioned to
+  states: { State },
+});
+```
+
+Middleware can also do state transitions, just like ordinary states. If
+middleware causes a state transition, it will prevent the rest of the chain
+from running; e.g.:
+
+```typescript
+type Messages = {
+  next(): void,
+};
+type Props = {
+  skip: boolean,
+};
+
+const Middleware = create.transition<"Next", Messages, Props>().build(state => state.build({
+  messages: msg => msg.build({
+    next() {
+      if(state.props.skip) {
+        console.log("Skipped");
+        msg.goto("Next");
+      }
+    },
+  }),
+}));
+
+const Initial = create.transition<
+  "Next", Messages, Props
+>().middleware({ Middleware }).build(state => state.build({
+  messages: msg => msg.build({
+    console.log("Not skipped");
+    msg.goto("Next");
+  }),
+});
+
+const Next = create.transition().build();
+
+const machine = create.machine({
+  initial: "Initial",
+  states: { Initial, Next },
+});
+
+machine.start({
+  skip: false,
+});
+
+machine.dispatch("next"); // Prints "Not skipped" and transitions to next
+machine.stop();
+machine.start({
+  skip: true,
+});
+machine.dispatch("next"); // Prints "Skipped" and transitions to next
+```
+
+## Middleware type contract
+
+Middleware needs to fulfill a specific type contract, which is checked by the
+TypeScript compiler:
+
+1. If it transitions to another state via `state.goto(...)`, its specifications
+   for which states it transitions to must be a subset or equal to the states
+   that the calling state transitions to. To put it another way: if the
+   middleware was declared with `create.transition<"Next">()`, the state using
+   that middleware must *at least* also transition to `"Next"` (it can also
+   transition to other states the middleware is unaware of; `"Next" | "Final"`
+   is fine).
+2. Middleware can respond to either a superset of or a subset of messages that
+   the calling state responds to (or exactly the same set of messages). If
+   there's no overlap, it'll be an error.
+3. If the middleware uses props, they must be a subset of (or equal to) the
+   props that the calling state uses.
+
+## State type changes using middleware
+
+When states use middleware, any messages the middleware responds to become
+optional in the state using the middleware. For example: if your middleware
+defines a message handler for `print`, you don't need to define your own
+message handler for `print`, even if your `create.transition` call says you
+respond to `print` (ordinarily, saying that you respond to `print` but not
+defining a message handler for it is an error). This is meant as a convenience
+to allow you to refactor commonly-used message handlers out into shared
+middleware, and not force callers to then define empty, dummy method handlers
+just to fulfill a type contract.
+
+## Middleware states and machine creation
+
+If you use a state solely as middleware, you don't need to pass it into the
+machine's `states` hash: it'll get automatically included since you already
+called `.middleware({ ... })` on it. If you use a state as both middleware
+*and* an independent state you can transition to, you do need to tell the
+machine about it by passing it into the `states` hash.
 
 # Manually transitioning states from the machine
 
