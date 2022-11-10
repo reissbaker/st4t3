@@ -15,6 +15,8 @@ file to get full type safety. There are no runtime dependencies and the code is
 * [Events](#events)
 * [Nested state machines](#nested-state-machines)
 * [Type safety](#type-safety)
+* [Manually transitioning states from the
+  machine](#manually-transitioning-states-from-the-machine)
 * [Performance](#performance)
 * [Comparison to alternatives](#comparison-to-alternatives)
 
@@ -120,41 +122,6 @@ machine.dispatch("jump"); // Prints "jumped!"
 machine.dispatch("jump"); // No-op, since the jump state ignores further jump messages
 machine.dispatch("land"); // Prints "stopping jumping" and then "landed."
 ```
-
-You can also manually attempt state transitions on the state machine itself;
-for example:
-
-```typescript
-machine.goto('Land');
-```
-
-This works identically to `state.goto`, except that by default it will ignore
-the call if you're already in the specified state; e.g. if you're currently in
-state `Land`, calling `machine.goto('Land')` is a no-op. If you want to force
-it to rerun the `Land` initialization, use `machine.force('Land')`.
-
-States themselves don't have this restriction: if you want to transition to
-yourself, you may, as long as you declare that transition when you create the
-state, e.g.
-
-```typescript
-const Land = create.transition<'Land' | 'Jump', /* ... */>().build(state => {
-  return state.build({
-    messages: msg => msg.build({
-      someMessage() {
-        state.goto('Land');
-      }
-    }),
-  });
-});
-```
-
-This difference is purely for developer experience: typically when you call
-`machine.goto`, what you mean to do is to ensure the machine is in that state;
-you aren't necessarily trying to re-run that state if it's already there.
-Whereas the only use case for calling `state.goto('YOUR_OWN_NAME')` is to
-re-run initialization code; if you didn't mean to do that, you could instead
-simply do nothing (since you know you're already in your own state).
 
 ## What if I want a state that never transitions?
 
@@ -707,6 +674,44 @@ const DoubleJump = create.transition<
 Dispatching to a parent is equivalent to dispatching to the parent's machine;
 the parent will get the message, and it will be forwarded to all children as
 well.
+
+
+# Manually transitioning states from the machine
+
+You can manually attempt state transitions on the state machine itself; for
+example:
+
+```typescript
+machine.goto('Land');
+```
+
+This works identically to `state.goto`, except that by default it will ignore
+the call if you're already in the specified state; e.g. if you're currently in
+state `Land`, calling `machine.goto('Land')` is a no-op. If you want to force
+it to rerun the `Land` initialization, use `machine.force('Land')`.
+
+States themselves don't have this restriction: if you want to transition to
+yourself, you may, as long as you declare that transition when you create the
+state, e.g.
+
+```typescript
+const Land = create.transition<'Land' | 'Jump', /* ... */>().build(state => {
+  return state.build({
+    messages: msg => msg.build({
+      someMessage() {
+        state.goto('Land');
+      }
+    }),
+  });
+});
+```
+
+This difference is purely for developer experience: typically when you call
+`machine.goto`, what you mean to do is to ensure the machine is in that state;
+you aren't necessarily trying to re-run that state if it's already there.
+Whereas the only use case for calling `state.goto('YOUR_OWN_NAME')` is to
+re-run initialization code; if you didn't mean to do that, you could instead
+simply do nothing (since you know you're already in your own state).
 
 # Type safety
 
