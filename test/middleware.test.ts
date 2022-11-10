@@ -115,4 +115,62 @@ describe("Middleware", () => {
     machine.start({ doubleJump: true });
     expect(middlewareRan).toBeTruthy();
   });
+
+  it("Should run multiple middlewares in order", () => {
+    let firstMiddlewareRan = false;
+    let secondMiddlewareRan = false;
+    let lastMiddlewareRan = false;
+    type Messages = {
+      msg(): void;
+    };
+
+    // Just to make sure lexical sorting isn't happening, call the first middleware B instead of A
+    const middlewareB = create.transition<never, Messages>().build(state => state.build({
+      messages: msg => msg.build({
+        msg() {
+          expect(firstMiddlewareRan).toBeFalsy();
+          expect(secondMiddlewareRan).toBeFalsy();
+          expect(lastMiddlewareRan).toBeFalsy();
+          firstMiddlewareRan = true;
+        }
+      }),
+    }));
+
+    const middlewareA = create.transition<never, Messages>().build(state => state.build({
+      messages: msg => msg.build({
+        msg() {
+          expect(firstMiddlewareRan).toBeTruthy();
+          expect(secondMiddlewareRan).toBeFalsy();
+          expect(lastMiddlewareRan).toBeFalsy();
+          secondMiddlewareRan = true;
+        }
+      }),
+    }));
+
+    const middlewareC = create.transition<never, Messages>().build(state => state.build({
+      messages: msg => msg.build({
+        msg() {
+          expect(firstMiddlewareRan).toBeTruthy();
+          expect(secondMiddlewareRan).toBeTruthy();
+          expect(lastMiddlewareRan).toBeFalsy();
+          lastMiddlewareRan = true;
+        },
+      }),
+    }));
+
+    const State = create.transition<never, Messages>().middleware({
+      middlewareB,
+      middlewareA,
+      middlewareC
+    }).build();
+
+    const machine = create.machine<Messages>().build({
+      initial: "State",
+      states: { State },
+    });
+
+    machine.start({});
+    machine.dispatch("msg");
+    expect(firstMiddlewareRan && secondMiddlewareRan && lastMiddlewareRan).toBeTruthy();
+  });
 });
