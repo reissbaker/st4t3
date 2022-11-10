@@ -1,4 +1,4 @@
-import { vi, expect, it, describe, beforeEach } from "vitest";
+import { expect, it, describe } from "vitest";
 import * as create from "../index";
 
 describe("Middleware", () => {
