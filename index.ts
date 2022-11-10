@@ -531,7 +531,6 @@ export class Machine<
     }
 
     this._stopCurrent();
-    this._currentName = next;
     this._createAndStart(next, this._props);
   }
 
