@@ -1,3 +1,5 @@
+## async
+
 You should make states be optionally async (ideally at low runtime cost for
 non-async states); would be super useful for loading resources or general
 server-side use. Quick sketch of how this could work: machines act as message
@@ -9,6 +11,30 @@ promise.
 Actually you don't need explicit async vs non-async dispatchers for this...
 Just check if the message handler returns a promise. If it does, wait for it;
 otherwise call `done` immediately.
+
+You'll need an async version of `dispatch` that's different than the sync
+version, or else you'll pay the cost of a promise every single dispatch, which
+is unrealistic for games. This starts to require some very hairy type
+introspection; e.g. async middleware can't be used in non-async states. Not
+sure if this is a usable approach.
+
+TBQH there's another possible approach here: allow states to dispatch to
+themselves. Then an async state is the same as a sync state: message handlers
+don't specify a return type, so there's no reason they *can't* be async... It's
+just that you can't `await machine.dispatch(...)`. But you can
+`machine.events("NextState").once("start", ...)`, which is functionally
+similar. Buuuuuuut, big downside is that middleware can't stop execution of the
+rest of the chain while it waits for resources. Allowing states to dispatch to
+themselves seems like kind of a no-brainer though.
+
+Okay, next take on async: you could have `machine.dispatch('...')` return a
+not-quite-a-promise object with a `promise()` method: if you call the method,
+it'll generate a promise that finishes when the `done` function is called (on
+the next microtick of the VM yada yada like the Promise spec demands; it'll use
+real, host Promise objects). That way you can avoid the overhead of promises if
+you want to, but server-side users can opt into using async stuff.
+
+## random
 
 Use expect-type to test type narrowing: https://github.com/mmkal/expect-type
 
