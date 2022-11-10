@@ -5,7 +5,7 @@ state graphs with minimal memory usage. It only keeps a single state instance
 in memory at a time per-machine, and allows you to break large state machines
 into many files rather than forcing you to define the machine entirely in one
 file to get full type safety. There are no runtime dependencies and the code is
-<550 lines of TypeScript, excluding comments.
+<700 lines of TypeScript, excluding comments.
 
 * [Development](#development)
 * [Getting started](#getting-started)
@@ -55,17 +55,20 @@ export const Jump = create.transition<"Land", Pick<Messages, "land">>().build(st
   console.log("jumped!");
 
   return state.build({
-    messages: {
-      // Stop is a special message that fires whenever you're leaving a state
-      stop() {
-        console.log("stopping jumping");
-      },
+    messages: msg => msg.build({
+      // Since we declared we listen to the "land" message, we can (and must)
+      // define a message handler of the same name here
       land() {
         // Since you declared you can transition to the "Land" state, you can call
         // that here. The TypeScript compiler ensures you can only `goto`
         // states you've defined in the `transition` function above
         state.goto("Land");
       },
+    }),
+
+    // Stop runs whenever you're leaving a state
+    stop() {
+      console.log("stopping jumping");
     },
   });
 });
@@ -81,11 +84,11 @@ export const Land = create.transition<"Jump", Pick<Messages, "jump">>().build(st
   console.log("landed");
 
   return state.build({
-    messages: {
+    messages: msg => msg.build({
       jump() {
         state.goto("Jump");
       }
-    },
+    }),
   });
 });
 ```
@@ -137,11 +140,11 @@ state, e.g.
 ```typescript
 const Land = create.transition<'Land' | 'Jump', /* ... */>().build(state => {
   return state.build({
-    messages: {
+    messages: msg => msg.build({
       someMessage() {
         state.goto('Land');
       }
-    },
+    }),
   });
 });
 ```
@@ -169,7 +172,7 @@ export const LongerFormFinal = create.transition<never>().build(state => {
 // Longest form:
 export const LongestFormFinal = create.transition<never>().build(state => {
   return state.build({
-    messages: {},
+    messages: msg => msg.build({}),
   });
 });
 ```
@@ -201,9 +204,9 @@ type JumpMessages = Pick<Messages, "land">;
 const Jump = create.transition<"Land", JumpMessages, JumpProps>().build(state => {
   console.log(`Jumped with power ${state.props.jumpPower}`);
   return state.build({
-    messages: {
+    messages: msg => msg.build({
       land() { state.goto("Land") }
-    }
+    })
   });
 });
 
@@ -213,9 +216,9 @@ const Land = create.transition<"Jump", LandMessages, LandProps>().build(state =>
   if(this.props.bounceOnLand) console.log("Bouncy land");
   else console.log("Unbouncy land");
   return state.build({
-    messages: {
+    messages: msg => msg.build({
       jump() { state.goto("Jump"); }
-    }
+    })
   });
 });
 
@@ -258,11 +261,11 @@ const Still = create.transition<'Move', Pick<Messages, 'move'>, Props>().build(s
   playAnim(`stand-${state.props.direction}`);
 
   return state.build({
-    messages: {
+    messages: msg => msg.build({
       move(direction) {
         state.goto('Move', { direction });
       },
-    },
+    }),
   });
 });
 
@@ -364,9 +367,9 @@ second time, it'll cause a state transition again, even if it's not the current
 state!
 
 One way of handling this would be to manually deregister every event handler on
-the `stop` message handler. But that's pretty error-prone, since you can easily
-add a handler and forget to deregister it. St4t3 provides a helpful `follow`
-API that wraps Node-style EventEmitters, or DOM-style
+the `stop` function. But that's pretty error-prone, since you can easily add a
+handler and forget to deregister it. St4t3 provides a helpful `follow` API that
+wraps Node-style EventEmitters, or DOM-style
 `addEventListener`/`removeEventListener` objects, and will automatically
 deregister any event handler passed through the `follow` API when the state
 stops or is transitioned away from. A fixed version of the previous example
@@ -521,11 +524,11 @@ type Messages = {
 const InitialJump = create.transition<"DoubleJump", Pick<Messages, "jump">>().build(state => {
   console.log("initial jump");
   return state.build({
-    messages: {
+    messages: msg => msg.build({
       jump() {
         state.goto("DoubleJump");
       }
-    },
+    }),
   });
 });
 
@@ -543,19 +546,19 @@ const Jump = create.transition<"Land", Pick<Messages, "land">>().build(state => 
         states: { InitialJump, DoubleJump },
       }),
     },
-    messages: {
+    messages: msg => msg.build({
       land() { state.goto("Land"); },
-    },
+    }),
   });
 });
 
 const Land = create.transition<"Jump", Pick<Messages, "jump">>().build(state => {
   return state.build({
-    messages: {
+    messages: msg => msg.build({
       jump() {
         state.goto("Jump");
       },
-    }
+    })
   });
 });
 
@@ -638,7 +641,7 @@ const Inner = create.transition().build(s => s.build({
       states: { MostInner },
     }),
   },
-  messages: {},
+  messages: msg => msg.build({}),
 }));
 
 const Outer = create.transition().build(s => s.build({
@@ -648,7 +651,7 @@ const Outer = create.transition().build(s => s.build({
       states: { Inner },
     }),
   },
-  messages: {},
+  messages: msg => msg.build({}),
 }));
 
 const MostOuter = create.transition().build(s => s.build({
@@ -658,7 +661,7 @@ const MostOuter = create.transition().build(s => s.build({
       states: { Outer },
     }),
   },
-  messages: {},
+  messages: msg => msg.build({}),
 }));
 
 const machine = create.machine().build({
@@ -693,11 +696,11 @@ const DoubleJump = create.transition<
   Props,
   ParentMessages
 >().build((state, parent) => state.build({
-  messages: {
+  messages: msg => msg.build({
     someMessage() {
       parent.dispatch("someParentMessage");
     },
-  },
+  }),
 });
 ```
 
@@ -801,11 +804,9 @@ branching, using a variety of "guard" types expressed as JSON instead of an `if`
 statement. St4t3 just uses `if` statements, or whatever other TypeScript code
 you'd want to use.
 
-XState is also much larger and more complex than St4t3; the "minimal" XState
-implementation &mdash; which is missing many features &mdash; is roughly double
-the size of St4t3; meanwhile, the "core" implementation (the feature-complete
-version, but without counting any of the external tooling) is roughly 16x the
-code count. It's hefty.
+XState is also much larger and more complex than St4t3; the "core"
+implementation (the feature-complete version, but without counting any of the
+external tooling) is roughly 7x the code count. It's hefty.
 
 ### TS-FSM
 
