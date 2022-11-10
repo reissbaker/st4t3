@@ -72,4 +72,47 @@ describe("Middleware", () => {
     expect(middlewareRan).toBeTruthy();
     expect(stateRan).toBeFalsy();
   });
+
+  it("Should get access to the parameters passed to dispatch", () => {
+    let middlewareRan = false;
+    const Middleware = create.transition<never, Messages>().build(state => state.build({
+      messages: msg => msg.build({
+        update(delta: number) {
+          expect(delta).toBe(5);
+          middlewareRan = true;
+        },
+      }),
+    }));
+    const State = create.transition<never, Messages>().middleware({ Middleware }).build();
+    const machine = create.machine<Messages>().build({
+      initial: "State",
+      states: { State },
+    });
+    machine.start({});
+    machine.dispatch("update", 5);
+    expect(middlewareRan).toBeTruthy();
+  });
+
+  it("Should get access to the props passed in", () => {
+    type Props = {
+      doubleJump: boolean,
+    };
+    let middlewareRan = false;
+    const Middleware = create.transition<never, {}, Props>().build(state => {
+      expect(state.props.doubleJump).toBeTruthy();
+      middlewareRan = true;
+
+      return state.build({
+        messages: msg => msg.build({}),
+      });
+    });
+
+    const State = create.transition<never, {}, Props>().middleware({ Middleware }).build();
+    const machine = create.machine<{}, Props>().build({
+      initial: "State",
+      states: { State },
+    });
+    machine.start({ doubleJump: true });
+    expect(middlewareRan).toBeTruthy();
+  });
 });
