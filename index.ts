@@ -19,7 +19,7 @@ type BuildArgs<
   stop?: () => any,
 };
 
-export class StateBuilder<
+export class DispatchBuilder<
   Next extends string,
   M extends BaseMessages,
   Props extends {},
@@ -97,7 +97,7 @@ type Children<Props extends {}, ParentMessages extends BaseMessages> = {
   [key: string]: Machine<any, any, any, Props, Parent<ParentMessages>>,
 };
 
-class DispatchBuilder<
+export class StateBuilder<
   Next extends string,
   M extends BaseMessages = {},
   Props extends {} = {},
@@ -122,7 +122,7 @@ class DispatchBuilder<
     any
   >>(
     curryBuildFn: (
-      builder: StateBuilder<Next, M, Props, ParentMessages>
+      builder: DispatchBuilder<Next, M, Props, ParentMessages>
     ) => Dispatcher
   ): DispatchBuildFn<
     Next,
@@ -141,17 +141,17 @@ class DispatchBuilder<
     any
   >>(
     curryBuildFn?: (
-      builder: StateBuilder<Next, M, Props, ParentMessages>
+      builder: DispatchBuilder<Next, M, Props, ParentMessages>
     ) => Dispatcher
   ) {
     return (machine: any, props: any, parent: any) => {
       if(!curryBuildFn) {
-        curryBuildFn = ((state: StateBuilder<Next, any, Props, ParentMessages>) => {
+        curryBuildFn = ((state: DispatchBuilder<Next, any, Props, ParentMessages>) => {
           return state.build({ messages: () => state.messages({}) });
-        }) as ((builder: StateBuilder<Next, M, Props, ParentMessages>) => Dispatcher);
+        }) as ((builder: DispatchBuilder<Next, M, Props, ParentMessages>) => Dispatcher);
       }
       return curryBuildFn(
-        new StateBuilder<Next, M, Props, ParentMessages>(machine, props, parent, this._middleware)
+        new DispatchBuilder<Next, M, Props, ParentMessages>(machine, props, parent, this._middleware)
       );
     };
   }
@@ -162,14 +162,14 @@ class DispatchBuilder<
       Next,
       NoDuplicateKeys<NewMiddleware, CurrentMiddleware>
     >
-  ): DispatchBuilder<
+  ): StateBuilder<
     Next,
     M,
     Props,
     ParentMessages,
     CurrentMiddleware & NewMiddleware
   > {
-    return new DispatchBuilder({
+    return new StateBuilder({
       ...this._middleware,
       ...middleware,
     });
@@ -232,8 +232,8 @@ export function transition<
   M extends BaseMessages = {},
   Props extends {} = {},
   Parent extends BaseMessages = {},
->(): DispatchBuilder<Next, M, Props, Parent> {
-  return new DispatchBuilder();
+>(): StateBuilder<Next, M, Props, Parent> {
+  return new StateBuilder();
 }
 
 // Complex type that we build for constructing new states. It takes one fake param (the last one),
