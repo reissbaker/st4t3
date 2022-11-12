@@ -38,12 +38,6 @@ you want to, but server-side users can opt into using async stuff.
 
 Use expect-type to test type narrowing: https://github.com/mmkal/expect-type
 
-Question: currently, message handlers can be undefined; is this actually useful
-or is this a now-unused tsc-appeasing remnant of the old optional `stop`
-message? It seems like they shouldn't be allowed to be undefined, and it also
-seems like forcing them to be functions would clean up a bit of the type
-hoop-jumping around `Params` vs `Parameters`.
-
 Future work: middleware right now is nice, but it would be useful to have a few
 more knobs to turn:
 
