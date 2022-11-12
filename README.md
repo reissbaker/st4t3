@@ -5,7 +5,7 @@ state graphs with minimal memory usage. It only keeps a single state instance
 in memory at a time per-machine, and allows you to break large state machines
 into many files rather than forcing you to define the machine entirely in one
 file to get full type safety. There are no runtime dependencies and the code is
-<700 lines of TypeScript, excluding comments.
+700 lines of TypeScript, excluding comments.
 
 * [Development](#development)
 * [Getting started](#getting-started)
