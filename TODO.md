@@ -6,7 +6,9 @@ server-side use. Quick sketch of how this could work: machines act as message
 *queues*, rather than simply fire-and-forget dispatching, and passes a `done`
 callback into the state dispatchers. Non-async state dispatchers instantly call
 `done`; async state handlers call `done` after waiting for the returned
-promise.
+promise. Technically we already have dispatch queues; we just only use them to
+handle `dispatch` calls during state initialization. Fairly proven concept in
+this codebase.
 
 Actually you don't need explicit async vs non-async dispatchers for this...
 Just check if the message handler returns a promise. If it does, wait for it;
@@ -18,14 +20,13 @@ is unrealistic for games. This starts to require some very hairy type
 introspection; e.g. async middleware can't be used in non-async states. Not
 sure if this is a usable approach.
 
-TBQH there's another possible approach here: allow states to dispatch to
-themselves. Then an async state is the same as a sync state: message handlers
-don't specify a return type, so there's no reason they *can't* be async... It's
-just that you can't `await machine.dispatch(...)`. But you can
+TBQH there's another possible approach here: use self-dispatching for async.
+Then an async state is the same as a sync state: message handlers don't specify
+a return type, so there's no reason they *can't* be async... It's just that you
+can't `await machine.dispatch(...)`. But you can
 `machine.events("NextState").once("start", ...)`, which is functionally
 similar. Buuuuuuut, big downside is that middleware can't stop execution of the
-rest of the chain while it waits for resources. Allowing states to dispatch to
-themselves seems like kind of a no-brainer though.
+rest of the chain while it waits for resources.
 
 Okay, next take on async: you could have `machine.dispatch('...')` return a
 not-quite-a-promise object with a `promise()` method: if you call the method,
