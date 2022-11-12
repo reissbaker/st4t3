@@ -10,7 +10,7 @@ describe("Middleware", () => {
     let middlewareRan = false;
     let stateRan = false;
     const Middleware = create.transition<never, Messages>().build(state => state.build({
-      messages: msg => msg.build({
+      messages: () => state.msg({
         update(_: number) {
           middlewareRan = true;
         },
@@ -19,7 +19,7 @@ describe("Middleware", () => {
 
     const State = create.transition<never, Messages>().middleware({ Middleware }).build(state => {
       return state.build({
-        messages: msg => msg.build({
+        messages: () => state.msg({
           update(_: number) {
             expect(middlewareRan).toBeTruthy();
             stateRan = true;
@@ -42,17 +42,17 @@ describe("Middleware", () => {
     let stateRan = false;
 
     const Middleware = create.transition<"Final", Messages>().build(state => state.build({
-      messages: msg => msg.build({
+      messages: goto => state.msg({
         update(_: number) {
           middlewareRan = true;
-          msg.goto("Final");
+          goto("Final");
         }
       }),
     }));
 
     const State = create.transition<"Final", Messages>().middleware({ Middleware }).build(state => {
       return state.build({
-        messages: msg => msg.build({
+        messages: () => state.msg({
           update(_: number) {
             stateRan = true;
           }
@@ -76,7 +76,7 @@ describe("Middleware", () => {
   it("Should get access to the parameters passed to dispatch", () => {
     let middlewareRan = false;
     const Middleware = create.transition<never, Messages>().build(state => state.build({
-      messages: msg => msg.build({
+      messages: () => state.msg({
         update(delta: number) {
           expect(delta).toBe(5);
           middlewareRan = true;
@@ -103,7 +103,7 @@ describe("Middleware", () => {
       middlewareRan = true;
 
       return state.build({
-        messages: msg => msg.build({}),
+        messages: () => state.msg({}),
       });
     });
 
@@ -126,7 +126,7 @@ describe("Middleware", () => {
 
     // Just to make sure lexical sorting isn't happening, call the first middleware B instead of A
     const middlewareB = create.transition<never, Messages>().build(state => state.build({
-      messages: msg => msg.build({
+      messages: () => state.msg({
         msg() {
           expect(firstMiddlewareRan).toBeFalsy();
           expect(secondMiddlewareRan).toBeFalsy();
@@ -137,7 +137,7 @@ describe("Middleware", () => {
     }));
 
     const middlewareA = create.transition<never, Messages>().build(state => state.build({
-      messages: msg => msg.build({
+      messages: () => state.msg({
         msg() {
           expect(firstMiddlewareRan).toBeTruthy();
           expect(secondMiddlewareRan).toBeFalsy();
@@ -148,7 +148,7 @@ describe("Middleware", () => {
     }));
 
     const middlewareC = create.transition<never, Messages>().build(state => state.build({
-      messages: msg => msg.build({
+      messages: () => state.msg({
         msg() {
           expect(firstMiddlewareRan).toBeTruthy();
           expect(secondMiddlewareRan).toBeTruthy();

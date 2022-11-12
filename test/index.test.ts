@@ -9,23 +9,23 @@ describe("State Machines", () => {
   };
 
   const Foo = create.transition<"Bar" | "Final", Messages>().build(state => state.build({
-    messages: msg => msg.build({
+    messages: goto => state.msg({
       next() {
-        msg.goto("Bar");
+        goto("Bar");
       },
       end() {
-        msg.goto("Final");
+        goto("Final");
       },
     }),
   }));
 
   const Bar = create.transition<"Foo" | "Final", Messages>().build(state => state.build({
-    messages: msg => msg.build({
+    messages: goto => state.msg({
       next() {
-        msg.goto("Foo");
+        goto("Foo");
       },
       end() {
-        msg.goto("Final");
+        goto("Final");
       },
     }),
   }));
@@ -282,9 +282,9 @@ describe("State machines using the stop API", () => {
   };
   const emitter = new EventEmitter<{ stop: undefined }>();
   const Initial = create.transition<"Final", Messages>().build(state => state.build({
-    messages: msg => msg.build({
+    messages: goto => state.msg({
       next() {
-        msg.goto("Final");
+        goto("Final");
       }
     }),
     stop() {
@@ -350,12 +350,12 @@ describe("State machines using the follow API", () => {
     });
 
     return state.build({
-      messages: msg => msg.build({
+      messages: goto => state.msg({
         final() {
-          msg.goto("Final");
+          goto("Final");
         },
         next() {
-          msg.goto("Intermediate");
+          goto("Intermediate");
         },
       }),
     });
@@ -363,9 +363,9 @@ describe("State machines using the follow API", () => {
 
   const Intermediate = create.transition<"Final", Messages>().build(state => {
     return state.build({
-      messages: msg => msg.build({
+      messages: goto => state.msg({
         next() {
-          msg.goto("Final");
+          goto("Final");
         },
       }),
     });
@@ -431,19 +431,19 @@ describe("State machines with messages that take arguments", () => {
     let elapsed = 0;
 
     return state.build({
-      messages: msg => msg.build({
+      messages: goto => state.msg({
         update(delta, currentMs) {
           elapsed += delta;
-          if(elapsed > 1000 && currentMs > 1000) msg.goto('Idle');
+          if(elapsed > 1000 && currentMs > 1000) goto('Idle');
         },
       }),
     });
   });
 
   const Idle = create.transition<'Stopped', Pick<Messages, "wake">>().build(state => state.build({
-    messages: msg => msg.build({
+    messages: goto => state.msg({
       wake() {
-        msg.goto('Stopped');
+        goto('Stopped');
       }
     })
   }));
@@ -490,11 +490,11 @@ describe("State machines with props", () => {
     Pick<Props, 'allowDoubleJumps'>
   >().build((state) => {
     return state.build({
-      messages: msg => msg.build({
+      messages: goto => state.msg({
         jump() {},
         jumpUpdateDouble() {},
         land() {
-          msg.goto('Land');
+          goto('Land');
         },
       })
     });
@@ -502,13 +502,13 @@ describe("State machines with props", () => {
 
   const Land = create.transition<'Jump', Messages, Props>().build((state) => {
     return state.build({
-      messages: msg => msg.build({
+      messages: goto => state.msg({
         land() {},
         jump() {
-          msg.goto('Jump');
+          goto('Jump');
         },
         jumpUpdateDouble(allowDoubleJumps) {
-          msg.goto('Jump', { allowDoubleJumps });
+          goto('Jump', { allowDoubleJumps });
         },
       }),
     });
@@ -610,9 +610,9 @@ describe("State machines with static props", () => {
     count: number,
   };
   const Initial = create.transition<"Final", Messages, Props>().build(state => state.build({
-    messages: msg => msg.build({
+    messages: goto => state.msg({
       next() {
-        msg.goto("Final");
+        goto("Final");
       }
     })
   }));
@@ -666,9 +666,9 @@ describe("Child states", () => {
     'DoubleJump',
     Pick<Messages, 'jump'>
   >().build(state => state.build({
-    messages: msg => msg.build({
+    messages: goto => state.msg({
       jump() {
-        msg.goto('DoubleJump');
+        goto('DoubleJump');
       }
     }),
   }));
@@ -682,10 +682,10 @@ describe("Child states", () => {
         states: { FirstJump, DoubleJump },
       }),
     },
-    messages: msg => msg.build({
+    messages: goto => s.msg({
       jump() {},
       land() {
-        msg.goto('Land');
+        goto('Land');
       },
     }),
   }));
@@ -700,9 +700,9 @@ describe("Child states", () => {
         states: { JustLanded, Still },
       }),
     },
-    messages: msg => msg.build({
+    messages: goto => s.msg({
       jump() {
-        msg.goto('ParentJump');
+        goto('ParentJump');
       },
       land() {},
     }),
@@ -769,7 +769,7 @@ describe("Child states", () => {
           states: { MostInner },
         }),
       },
-      messages: msg => msg.build({}),
+      messages: () => s.msg({}),
     }));
 
     const Outer = create.transition().build(s => s.build({
@@ -779,7 +779,7 @@ describe("Child states", () => {
           states: { Inner },
         }),
       },
-      messages: msg => msg.build({}),
+      messages: () => s.msg({}),
     }));
 
     const MostOuter = create.transition().build(s => s.build({
@@ -789,7 +789,7 @@ describe("Child states", () => {
           states: { Outer },
         }),
       },
-      messages: msg => msg.build({}),
+      messages: () => s.msg({}),
     }));
 
     const machine = create.machine().build({
@@ -826,7 +826,7 @@ describe("Child states", () => {
 
     const MostInner = create.transition<never, Messages, Props, HiddenParentMessages>().build(
       state => state.build({
-        messages: msg => msg.build({
+        messages: () => state.msg({
           next() {
             state.parent.dispatch("forwardSecond");
           }
@@ -841,7 +841,7 @@ describe("Child states", () => {
             states: { MostInner },
           }),
         },
-        messages: msg => msg.build({
+        messages: () => state.msg({
           forwardSecond() {
             state.parent.dispatch("second");
           }
@@ -856,10 +856,10 @@ describe("Child states", () => {
             states: { Inner },
           }),
         },
-        messages: msg => msg.build({
+        messages: goto => state.msg({
           next() {},
           second() {
-            msg.goto("Second");
+            goto("Second");
           }
         })
       })
@@ -888,7 +888,7 @@ describe("Child states", () => {
     };
 
     const Inner = create.transition<never, {}, InnerProps>().build(state => state.build({
-      messages: msg => msg.build({})
+      messages: () => state.msg({})
     }));
 
     const Outer = create.transition<never, {}, Props>().build(state => state.build({
@@ -901,7 +901,7 @@ describe("Child states", () => {
           },
         }),
       },
-      messages: msg => msg.build({})
+      messages: () => state.msg({})
     }));
 
     const machine = create.machine<{}, Props>().build({

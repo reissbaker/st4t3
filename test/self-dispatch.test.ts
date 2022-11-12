@@ -11,9 +11,9 @@ describe("Self dispatching from within states", () => {
       state.dispatch("next");
 
       return state.build({
-        messages: msg => msg.build({
+        messages: goto => state.msg({
           next() {
-            msg.goto("Next");
+            goto("Next");
           },
         }),
       });
@@ -34,7 +34,7 @@ describe("Self dispatching from within states", () => {
   it("Should no-op when called inside stop()", () => {
     let nextCalled = false;
     const State = create.transition<never, Messages>().build(state => state.build({
-      messages: msg => msg.build({
+      messages: () => state.msg({
         next() {
           nextCalled = true;
         }
@@ -61,12 +61,12 @@ describe("Self dispatching from within states", () => {
     };
 
     const Initial = create.transition<"Final", FullMessages>().build(state => state.build({
-      messages: msg => msg.build({
+      messages: goto => state.msg({
         next() {
           nextCalled = true;
         },
         final() {
-          msg.goto("Final");
+          goto("Final");
         },
       }),
       stop() {
@@ -75,7 +75,7 @@ describe("Self dispatching from within states", () => {
     }));
 
     const Final = create.transition<never, Messages>().build(state => state.build({
-      messages: msg => msg.build({
+      messages: () => state.msg({
         // Make sure that this function also isn't called! Or else we open up a communication hole
         // between states, which probably should be handled by props.
         next() {

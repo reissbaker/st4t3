@@ -15,7 +15,7 @@ type BuildArgs<
   C extends Children<Props, M>
 > = {
   children?: C,
-  messages: (msg: MessageBuilder<Next, M, Props>) => MessageDispatcher<M>,
+  messages: (goto: Goto<Next, Props>) => MessageDispatcher<M>,
   stop?: () => any,
 };
 
@@ -64,13 +64,21 @@ export class StateBuilder<
       );
     }
     return new StateDispatcher(
-      { messages: (msg) => msg.build({}) },
+      { messages: () => this.messages({} as M) },
       this.props,
       this.follow,
       this.machine,
       this.parent,
       this.middleware,
     );
+  }
+
+  messages(messages: M): MessageDispatcher<M> {
+    return new MessageDispatcher(messages);
+  }
+
+  msg(messages: M): MessageDispatcher<M> {
+    return this.messages(messages);
   }
 
   dispatch<Name extends keyof M>(name: Name, ...data: Params<M[Name]>) {
@@ -139,7 +147,7 @@ class DispatchBuilder<
     return (machine: any, props: any, parent: any) => {
       if(!curryBuildFn) {
         curryBuildFn = ((state: StateBuilder<Next, any, Props, ParentMessages>) => {
-          return state.build({ messages: msg => msg.build({}) });
+          return state.build({ messages: () => state.messages({}) });
         }) as ((builder: StateBuilder<Next, M, Props, ParentMessages>) => Dispatcher);
       }
       return curryBuildFn(
@@ -258,21 +266,17 @@ export class Parent<M extends BaseMessages> {
 // Message creation
 // -------------------------------------------------------------------------------------------------
 
-export class MessageBuilder<Next extends string, M extends BaseMessages, Props extends {}> {
-  constructor(
-    private readonly machine: Machine<M, any, any, any, any>
-  ) {}
-
-  build(messages: M): MessageDispatcher<M> {
-    return new MessageDispatcher(messages);
-  }
-
-  goto(next: Next, updateProps?: Partial<Props>) {
-    // All goto calls from states are actually force calls for the machine; the only use case for
-    // transitioning to yourself is to re-run initialization code
-    this.machine.force(next, updateProps);
-  }
+function gotoBuilder<Next extends string, Props extends {}>(
+  machine: Machine<any, any, any, any, any>
+): Goto<Next, Props> {
+  return function goto(next, updateProps?) {
+    machine.force(next, updateProps);
+  };
 }
+
+export type Goto<Next extends string, Props extends {}> = (
+  next: Next, updateProps?: Partial<Props>
+) => void;
 
 /*
  * Message dispatching for states
@@ -322,7 +326,7 @@ export class StateDispatcher<
     this.middleware = Object.values(middleware || {}).map(buildFn => {
       return buildFn(machine, props, parent, null)
     });
-    this.messages = args.messages(new MessageBuilder(machine));
+    this.messages = args.messages(gotoBuilder(machine));
     this._stop = args.stop;
   }
 

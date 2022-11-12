@@ -5,6 +5,32 @@ function testType(cb: () => any) {
 }
 
 testType(() => {
+  // It should throw an error when you try to goto a state when you declared you never transition
+  type Messages = { test(): void };
+  create.transition<never, Messages>().build(state => state.build({
+    messages: goto => state.msg({
+      test() {
+        //@ts-expect-error
+        goto("hi");
+      }
+    }),
+  }));
+});
+
+testType(() => {
+  // It should throw an error when you try to goto a state you didn't declare
+  type Messages = { test(): void };
+  create.transition<"hi", Messages>().build(state => state.build({
+    messages: goto => state.msg({
+      test() {
+        //@ts-expect-error
+        goto("bye");
+      }
+    }),
+  }));
+});
+
+testType(() => {
   // It should throw an error when assigning a not-fully-specified machine
   const NotFinal = create.transition<'Final'>().build(state => state.build());
   create.machine().build({
@@ -59,7 +85,7 @@ testType(() => {
         states: { Inner },
       }),
     },
-    messages: msg => msg.build({}),
+    messages: () => state.msg({}),
   }));
 });
 
@@ -79,7 +105,7 @@ testType(() => {
           states: { Inner },
         }),
       },
-      messages: msg => msg.build({
+      messages: () => state.msg({
         next(_: number) {
         }
       }),
@@ -103,7 +129,7 @@ testType(() => {
           states: { Inner },
         }),
       },
-      messages: msg => msg.build({}),
+      messages: () => state.msg({}),
     })
   });
 });
@@ -122,7 +148,7 @@ testType(() => {
         states: { Inner },
       }),
     },
-    messages: msg => msg.build({
+    messages: () => state.msg({
       next() {}
     }),
   }));
@@ -134,7 +160,7 @@ testType(() => {
     next(a: string): void,
   };
   const Inner = create.transition<never, ChildMessages>().build(state => state.build({
-    messages: msg => msg.build({
+    messages: () => state.msg({
       next() {},
     })
   }));
@@ -146,7 +172,7 @@ testType(() => {
         states: { Inner },
       }),
     },
-    messages: msg => msg.build({
+    messages: () => state.msg({
       next() {}
     }),
   }));
@@ -170,7 +196,7 @@ testType(() => {
         states: { Inner },
       }),
     },
-    messages: msg => msg.build({}),
+    messages: () => state.msg({}),
   }));
 });
 
@@ -192,7 +218,7 @@ testType(() => {
         states: { Inner },
       }),
     },
-    messages: msg => msg.build({}),
+    messages: () => state.msg({}),
   }));
 });
 
@@ -216,7 +242,7 @@ testType(() => {
         },
       }),
     },
-    messages: msg => msg.build({}),
+    messages: () => state.msg({}),
   }));
 });
 
@@ -242,7 +268,7 @@ testType(() => {
         },
       }),
     },
-    messages: msg => msg.build({}),
+    messages: () => state.msg({}),
   }));
 });
 
@@ -267,7 +293,7 @@ testType(() => {
         states: { Inner },
       }),
     },
-    messages: msg => msg.build({}),
+    messages: () => state.msg({}),
   }));
 });
 
@@ -290,7 +316,7 @@ testType(() => {
 
   const Middleware = create.transition<never, MiddlewareMessages, Props>().build(state => {
     return state.build({
-      messages: msg => msg.build({
+      messages: () => state.msg({
         print() {
           console.log(state.props);
         },
@@ -303,7 +329,7 @@ testType(() => {
   create.transition<
     never, Messages, Props
   >().middleware({ Middleware }).build(state => state.build({
-    messages: msg => msg.build({
+    messages: () => state.msg({
       save() {
         console.log('saving...', state.props.id, state.props.firstName);
       }
@@ -331,7 +357,7 @@ testType(() => {
 
   const Middleware = create.transition<never, MiddlewareMessages, MiddlewareProps>().build(state => {
     return state.build({
-      messages: msg => msg.build({
+      messages: () => state.msg({
         print() {
           console.log(state.props);
         }
@@ -342,7 +368,7 @@ testType(() => {
   create.transition<
     never, Messages, Props
   >().middleware({ Middleware }).build(state => state.build({
-    messages: msg => msg.build({
+    messages: () => state.msg({
       print() {
         console.log("printing first name:", state.props.firstName);
       },
@@ -370,7 +396,7 @@ testType(() => {
 
   const Middleware = create.transition<never, Messages, MiddlewareProps>().build(state => {
     return state.build({
-      messages: msg => msg.build({
+      messages: () => state.msg({
         print() {
           console.log(state.props);
         },
@@ -383,7 +409,7 @@ testType(() => {
     never, Messages, Props
     //@ts-expect-error
   >().middleware({ Middleware }).build(state => state.build({
-    messages: msg => msg.build({
+    messages: () => state.msg({
       print() {},
       save() {
         console.log('saving...', state.props.id);
