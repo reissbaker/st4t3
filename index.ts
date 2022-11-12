@@ -239,7 +239,7 @@ export function transition<
 // Complex type that we build for constructing new states. It takes one fake param (the last one),
 // solely used to force ParentMessages to be contravariant. We always pass null to that param and
 // cast to any.
-type DispatchBuildFn<
+export type DispatchBuildFn<
   Next extends string,
   M extends BaseMessages,
   Props extends {},
