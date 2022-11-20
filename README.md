@@ -5,7 +5,7 @@ state graphs with minimal memory usage. It only keeps a single state instance
 in memory at a time per-machine, and allows you to break large state machines
 into many files rather than forcing you to define the machine entirely in one
 file to get full type safety. There are no runtime dependencies and the code is
-700 lines of TypeScript, excluding comments.
+<800 lines of TypeScript, excluding comments.
 
 * [Development](#development)
 * [Getting started](#getting-started)
@@ -867,6 +867,56 @@ you aren't necessarily trying to re-run that state if it's already there.
 Whereas the only use case for calling `goto('YOUR_OWN_NAME')` is to re-run
 initialization code; if you didn't mean to do that, you could instead simply do
 nothing (since you know you're already in your own state).
+
+## Adding props from middleware
+
+Sometimes, middleware may create or read data that it wants to pass on to any
+states that use it; for example, a piece of middleware might read user data and
+make it available to states. You can do this by adding a `props` key to the
+hash given to `state.build({ ... })`; for example:
+
+```typescript
+const UserMiddleware = create.transition().build(state => {
+  const user = store.getUser();
+  return state.build({
+    messages: () => state.msg({}),
+    props: {
+      user,
+    },
+  });
+});
+
+const middleware = { UserMiddleware };
+
+type Props = {
+  user: User
+};
+// You could also write the above as: type Props = create.MiddlewareProps<typeof middleware>;
+
+const State = create.transition<
+  "Next",
+  {},
+  Props
+>().middleware(middleware).build(state => {
+  console.log(state.props.user);
+  return state.build();
+});
+```
+
+If you specify props in middleware, you won't need to pass those props into the
+machine, since the middleware is already handling them; for example, a machine
+for the state above would look like:
+
+```typescript
+// You don't need to specify the user prop, since the middleware handles it
+const machine = create.machine().build({
+  initial: "State",
+  states: { State },
+});
+
+// Similarly, you don't need to pass it in here:
+machine.start({});
+```
 
 # Type safety
 
