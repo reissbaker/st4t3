@@ -918,6 +918,10 @@ const machine = create.machine().build({
 machine.start({});
 ```
 
+Middleware props can be anything, as long as they don't conflict with other
+props you're using for the state. If your state's props specify `msg: string`,
+your middleware can't return `{ msg: 5 }`: that's a type error.
+
 # Type safety
 
 * When you create a `machine`, it checks for exhaustiveness at compile
