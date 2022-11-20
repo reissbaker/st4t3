@@ -831,43 +831,6 @@ called `.middleware({ ... })` on it. If you use a state as both middleware
 *and* an independent state you can transition to, you do need to tell the
 machine about it by passing it into the `states` hash.
 
-# Manually transitioning states from the machine
-
-You can manually attempt state transitions on the state machine itself; for
-example:
-
-```typescript
-machine.goto('Land');
-```
-
-This works identically to `goto`, except that by default it will ignore the
-call if you're already in the specified state; e.g. if you're currently in
-state `Land`, calling `machine.goto('Land')` is a no-op. If you want to force
-it to rerun the `Land` initialization, use `machine.force('Land')`.
-
-States themselves don't have this restriction: if you want to transition to
-yourself, you may, as long as you declare that transition when you create the
-state, e.g.
-
-```typescript
-const Land = create.transition<'Land' | 'Jump', /* ... */>().build(state => {
-  return state.build({
-    messages: goto => state.msg({
-      someMessage() {
-        goto('Land');
-      }
-    }),
-  });
-});
-```
-
-This difference is purely for developer experience: typically when you call
-`machine.goto`, what you mean to do is to ensure the machine is in that state;
-you aren't necessarily trying to re-run that state if it's already there.
-Whereas the only use case for calling `goto('YOUR_OWN_NAME')` is to re-run
-initialization code; if you didn't mean to do that, you could instead simply do
-nothing (since you know you're already in your own state).
-
 ## Adding props from middleware
 
 Sometimes, middleware may create or read data that it wants to pass on to any
@@ -921,6 +884,43 @@ machine.start({});
 Middleware props can be anything, as long as they don't conflict with other
 props you're using for the state. If your state's props specify `msg: string`,
 your middleware can't return `{ msg: 5 }`: that's a type error.
+
+# Manually transitioning states from the machine
+
+You can manually attempt state transitions on the state machine itself; for
+example:
+
+```typescript
+machine.goto('Land');
+```
+
+This works identically to `goto`, except that by default it will ignore the
+call if you're already in the specified state; e.g. if you're currently in
+state `Land`, calling `machine.goto('Land')` is a no-op. If you want to force
+it to rerun the `Land` initialization, use `machine.force('Land')`.
+
+States themselves don't have this restriction: if you want to transition to
+yourself, you may, as long as you declare that transition when you create the
+state, e.g.
+
+```typescript
+const Land = create.transition<'Land' | 'Jump', /* ... */>().build(state => {
+  return state.build({
+    messages: goto => state.msg({
+      someMessage() {
+        goto('Land');
+      }
+    }),
+  });
+});
+```
+
+This difference is purely for developer experience: typically when you call
+`machine.goto`, what you mean to do is to ensure the machine is in that state;
+you aren't necessarily trying to re-run that state if it's already there.
+Whereas the only use case for calling `goto('YOUR_OWN_NAME')` is to re-run
+initialization code; if you didn't mean to do that, you could instead simply do
+nothing (since you know you're already in your own state).
 
 # Type safety
 
