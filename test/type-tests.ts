@@ -452,3 +452,76 @@ testType(() => {
   //@ts-expect-error
   create.transition().middleware({ A }).middleware({ A });
 });
+
+testType(() => {
+  // It should be allowed to specify props the machine doesn't provide, as long as middleware
+  // provides those props
+  const Middleware = create.transition().build(state => state.build({
+    messages: () => state.msg({}),
+    props: {
+      msg: "hello",
+    },
+  }));
+
+  const State = create.transition<
+    never, {}, { msg: string }
+  >().middleware({ Middleware }).build(state => state.build({
+    messages: () => state.msg({}),
+  }));
+
+  create.machine<{}, {}>().build({
+    initial: "State",
+    states: { State },
+  });
+});
+
+testType(() => {
+  // It should be allowed to specify props the machine doesn't provide split across multiple
+  // middlewares
+  const A = create.transition().build(state => state.build({
+    messages: () => state.msg({}),
+    props: {
+      msg: "hello",
+    },
+  }));
+
+  const B = create.transition().build(state => state.build({
+    messages: () => state.msg({}),
+    props: {
+      log: true,
+    },
+  }));
+
+  type Props = {
+    msg: string,
+    log: boolean,
+  };
+
+  const State = create.transition<
+    never, {}, Props
+  >().middleware({ A, B }).build(state => state.build({
+    messages: () => state.msg({}),
+  }));
+
+  create.machine<{}, {}>().build({
+    initial: "State",
+    states: { State },
+  });
+});
+
+testType(() => {
+  // It should be banned to use middleware that provides props that mismatch your own props
+  const Middleware = create.transition().build(state => state.build({
+    messages: () => state.msg({}),
+    props: {
+      msg: 5,
+    },
+  }));
+
+  create.transition<
+    never, {}, { msg: string }
+  // @ts-expect-error
+  >().middleware({ Middleware }).build(state => state.build({
+    messages: () => state.msg({}),
+  }));
+});

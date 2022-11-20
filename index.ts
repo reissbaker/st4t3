@@ -12,27 +12,49 @@ type BuildArgs<
   Next extends string,
   M extends BaseMessages,
   Props extends {},
-  C extends Children<Props, M>
+  C extends Children<Props, M>,
+  ReturnedProps extends {},
 > = {
   children?: C,
   messages: (goto: Goto<Next, Props>) => MessageDispatcher<M>,
   stop?: () => any,
+  props?: ReturnedProps,
 };
 
 export class DispatchBuilder<
   Next extends string,
   M extends BaseMessages,
   Props extends {},
-  ParentMessages extends BaseMessages
+  ParentMessages extends BaseMessages,
+  CurrentMiddleware extends Middleware<Next, any, Props, ParentMessages>,
 > {
   readonly follow = new FollowHandler();
+  private readonly middleware: Array<StateDispatcher<Next, M, Props, ParentMessages, any, any>>;
+  readonly props: Props & MiddlewareProps<CurrentMiddleware>;
 
   constructor(
     private readonly machine: Machine<Partial<M>, any, any, any, any>,
-    readonly props: Props,
+    props: Props,
     readonly parent: Parent<ParentMessages>,
-    private readonly middleware: Middleware<Next, any, Props, ParentMessages>,
-  ) {}
+    middleware: CurrentMiddleware,
+  ) {
+    this.middleware = Object.values(middleware || {}).map(buildFn => {
+      return buildFn(machine, props, parent, null as any)
+    });
+    const middlewareProps: Partial<MiddlewareProps<CurrentMiddleware>> = {};
+    for(const dispatcher of this.middleware) {
+      if(!dispatcher.props) continue;
+      for(const key in dispatcher.props) {
+        //@ts-ignore
+        middlewareProps[key] = dispatcher.props[key];
+      }
+    }
+
+    this.props = {
+      ...props,
+      ...middlewareProps,
+    } as Props & MiddlewareProps<CurrentMiddleware>;
+  }
 
   /*
    * What is the point of these methods? Why not return the raw BuildArgs, which would be easier to
@@ -53,22 +75,22 @@ export class DispatchBuilder<
    * much of the same tasks, rather than making it simple-but-error-prone to manipulate the output
    * of the builder functions.
    */
-  build(): StateDispatcher<Next, M, Props, ParentMessages, {}>;
-  build<C extends Children<Props, M>>(
-    args: BuildArgs<Next, M, Props, C>
-  ): StateDispatcher<Next, M, Props, ParentMessages, C>;
-  build<C extends Children<Props, M>>(args?: BuildArgs<Next, M, Props, C>) {
+  build(): StateDispatcher<Next, M, Props, ParentMessages, {}, {}>;
+  build<C extends Children<Props, M>, ReturnedProps extends {}>(
+    args: BuildArgs<Next, M, Props, C, ReturnedProps>
+  ): StateDispatcher<Next, M, Props, ParentMessages, C, ReturnedProps>;
+  build<
+    C extends Children<Props, M>, ReturnedProps extends {}
+  >(args?: BuildArgs<Next, M, Props, C, ReturnedProps>) {
     if(args) {
-      return new StateDispatcher<Next, M, Props, ParentMessages, C>(
-        args, this.props, this.follow, this.machine, this.parent, this.middleware
+      return new StateDispatcher<Next, M, Props, ParentMessages, C, ReturnedProps>(
+        args, this.follow, this.machine, this.middleware
       );
     }
     return new StateDispatcher(
       { messages: () => this.messages({} as M) },
-      this.props,
       this.follow,
       this.machine,
-      this.parent,
       this.middleware,
     );
   }
@@ -102,65 +124,78 @@ export class StateBuilder<
   M extends BaseMessages = {},
   Props extends {} = {},
   ParentMessages extends BaseMessages = {},
-  CurrentMiddleware extends {} = {},
+  CurrentMiddleware extends Middleware<Next, any, Props, ParentMessages> = {},
 > {
   constructor(
-    private readonly _middleware: Middleware<Next, any, Props, ParentMessages> = {}
+    private readonly _middleware: CurrentMiddleware = {} as CurrentMiddleware
   ) {}
 
   // Override for empty build constructor: ultra shorthand syntax
   build(): DispatchBuildFn<
-    Next, {}, {}, StateDispatcher<Next, {}, {}, ParentMessages, never>, ParentMessages
+    Next, {}, {}, StateDispatcher<Next, {}, {}, ParentMessages, never, {}>, ParentMessages, {}
   >;
 
   // Override for actually providing a real builder function
-  build<Dispatcher extends StateDispatcher<
+  build<ReturnedProps extends {}, Dispatcher extends StateDispatcher<
     Next,
     MessagesForDispatch<M, CurrentMiddleware>,
-    Props,
+    StateProps<Props, CurrentMiddleware>,
     ParentMessages,
-    any
+    any,
+    ReturnedProps
   >>(
     curryBuildFn: (
-      builder: DispatchBuilder<Next, M, Props, ParentMessages>
+      builder: DispatchBuilder<Next, M, Props, ParentMessages, CurrentMiddleware>
     ) => Dispatcher
   ): DispatchBuildFn<
     Next,
     MessagesForDispatch<M, CurrentMiddleware>,
-    Props,
+    StateProps<Props, CurrentMiddleware>,
     Dispatcher,
-    ParentMessages
+    ParentMessages,
+    ReturnedProps
   >;
 
   // The implementation for the two overrides
-  build<Dispatcher extends StateDispatcher<
+  build<ReturnedProps extends {}, Dispatcher extends StateDispatcher<
     Next,
     MessagesForDispatch<M, CurrentMiddleware>,
-    Props,
+    StateProps<Props, CurrentMiddleware>,
     ParentMessages,
-    any
+    any,
+    ReturnedProps
   >>(
     curryBuildFn?: (
-      builder: DispatchBuilder<Next, M, Props, ParentMessages>
+      builder: DispatchBuilder<Next, M, Props, ParentMessages, CurrentMiddleware>
     ) => Dispatcher
   ) {
     return (machine: any, props: any, parent: any) => {
       if(!curryBuildFn) {
-        curryBuildFn = ((state: DispatchBuilder<Next, any, Props, ParentMessages>) => {
-          return state.build({ messages: () => state.messages({}) });
-        }) as ((builder: DispatchBuilder<Next, M, Props, ParentMessages>) => Dispatcher);
+        curryBuildFn = (
+          (state: DispatchBuilder<Next, any, Props, ParentMessages, CurrentMiddleware>) => {
+            return state.build({ messages: () => state.messages({}) });
+          }) as (
+            (builder: DispatchBuilder<
+              Next, M, Props, ParentMessages, CurrentMiddleware
+            >) => Dispatcher
+          );
       }
       return curryBuildFn(
-        new DispatchBuilder<Next, M, Props, ParentMessages>(machine, props, parent, this._middleware)
+        new DispatchBuilder<Next, M, Props, ParentMessages, CurrentMiddleware>(
+          machine, props, parent, this._middleware
+        )
       );
     };
   }
 
   middleware<NewMiddleware extends Middleware<any, any, Props, ParentMessages>>(
-    middleware: CheckMiddlewareVariance<
-      MiddlewareNext<NewMiddleware>,
-      Next,
-      NoDuplicateKeys<NewMiddleware, CurrentMiddleware>
+    middleware: CheckMiddlewareProps<
+      CheckMiddlewareVariance<
+        MiddlewareNext<NewMiddleware>,
+        Next,
+        NoDuplicateKeys<NewMiddleware, CurrentMiddleware>
+      >,
+      Props
     >
   ): StateBuilder<
     Next,
@@ -169,6 +204,7 @@ export class StateBuilder<
     ParentMessages,
     CurrentMiddleware & NewMiddleware
   > {
+    //@ts-ignore
     return new StateBuilder({
       ...this._middleware,
       ...middleware,
@@ -176,6 +212,7 @@ export class StateBuilder<
   }
 }
 
+// Types to check middleware variance
 type MiddlewareMessages<T> = T extends Middleware<any, infer M, any, any> ? M : never;
 type MiddlewareNext<T> = T extends Middleware<infer N, any, any, any> ? N : never;
 type MessagesForDispatch<M extends BaseMessages, CurrentMiddleware> =
@@ -186,6 +223,27 @@ type CheckMiddlewareVariance<MiddlewareNext extends string, Next extends string,
   [MiddlewareNext] extends [never] ? M :
   IfEquals<MiddlewareNext, Next> extends true ? M :
   IsStringUnionSubtype<MiddlewareNext, Next, M>;
+
+// Types to check middleware props
+type CheckMiddlewareProps<NewMiddleware extends Middleware<any, any, any, any>, Props extends {}> =
+  IfEquals<NewMiddleware, {}> extends true ? NewMiddleware :
+    Props extends MiddlewareProps<NewMiddleware> ? NewMiddleware : never;
+
+type BuildFnProps<T> = T extends DispatchBuildFn<any, any, any, infer D, any, any> ?
+  D extends StateDispatcher<any, any, any, any, any, infer RP> ?
+    RP : never : never;
+type MiddlewarePropsUnion<T extends Middleware<any, any, any, any>> = {
+  [K in keyof T]: BuildFnProps<T[K]>;
+}[keyof T];
+type UnionToIntersection<U> =
+  (U extends any ? (k: U)=>void : never) extends ((k: infer I)=>void) ? I : never
+export type MiddlewareProps<T extends Middleware<any, any, any, any>> =
+  UnionToIntersection<MiddlewarePropsUnion<T>>;
+
+// Type to remove props from a set if they're defined in the middleware
+type StateProps<Props extends {}, CurrentMiddleware extends Middleware<any, any, any, any>> =
+  IfEquals<CurrentMiddleware, {}> extends true ? Props :
+    Omit<Props, keyof MiddlewareProps<CurrentMiddleware>>;
 
 // Normally checking whether SmallerUnion extends BiggerUnion will return true *regardless of which
 // is larger.* You can hack around this via the behavior of Exclude, which doesn't suffer from this
@@ -214,8 +272,9 @@ type Middleware<
     Next,
     M,
     Props,
-    StateDispatcher<Next, M, Props, ParentMessages, any>,
-    ParentMessages
+    StateDispatcher<Next, M, Props, ParentMessages, any, any>,
+    ParentMessages,
+    any
   >
 };
 
@@ -243,8 +302,9 @@ export type DispatchBuildFn<
   Next extends string,
   M extends BaseMessages,
   Props extends {},
-  Dispatcher extends StateDispatcher<Next, M, Props, ParentMessages, any>,
+  Dispatcher extends StateDispatcher<Next, M, Props, ParentMessages, any, ReturnedProps>,
   ParentMessages extends BaseMessages,
+  ReturnedProps extends {}
 > = (
   machine: Machine<M, any, any, any, any>,
   props: Props,
@@ -253,7 +313,7 @@ export type DispatchBuildFn<
 ) => Dispatcher;
 
 export class Parent<M extends BaseMessages> {
-  constructor(private readonly dispatcher: StateDispatcher<any, M, any, any, any>) {}
+  constructor(private readonly dispatcher: StateDispatcher<any, M, any, any, any, any>) {}
 
   dispatch<Name extends keyof M>(name: Name, ...data: Params<M[Name]>) {
     this.dispatcher.dispatch(
@@ -299,12 +359,13 @@ export class StateDispatcher<
   P extends {},
   ParentMessages extends BaseMessages,
   C extends Children<P, M>,
+  ReturnedProps extends {}
 > {
   readonly hasChildren: boolean; // dumb micro optimization for cpu branch predictor
   readonly children: Children<P, M>;
+  readonly props?: ReturnedProps & Partial<P>;
 
   private readonly _stop: (() => any) | undefined;
-  private readonly middleware: Array<StateDispatcher<Next, M, P, ParentMessages, any>>;
   private readonly messages: MessageDispatcher<M>;
 
   // When a middleware or state calls goto(), eventually stop() will be called, and this state will
@@ -314,20 +375,16 @@ export class StateDispatcher<
   private _dead = false;
 
   constructor(
-    args: BuildArgs<Next, M, P, C>,
-    props: P,
+    args: BuildArgs<Next, M, P, C, ReturnedProps>,
     private readonly follow: FollowHandler,
     machine: Machine<M, any, any, any, any>,
-    parent: Parent<ParentMessages>,
-    middleware: Middleware<Next, any, P, any>,
+    private readonly middleware: Array<StateDispatcher<Next, M, P, ParentMessages, any, any>>
   ) {
     this.children = args.children || {};
     this.hasChildren = !!args.children;
-    this.middleware = Object.values(middleware || {}).map(buildFn => {
-      return buildFn(machine, props, parent, null)
-    });
     this.messages = args.messages(gotoBuilder(machine));
     this._stop = args.stop;
+    this.props = args.props;
   }
 
   dispatch<Name extends keyof M>(
@@ -397,10 +454,10 @@ export class MachineFlyweight<Props extends {}, M extends Machine<any, any, any,
   }
 }
 
-export type GetChildren<T> = T extends StateDispatcher<any, any, any, any, infer C> ? C : never;
+export type GetChildren<T> = T extends StateDispatcher<any, any, any, any, infer C, any> ? C : never;
 export class DispatcherFlyweight<
   Props extends {},
-  Dispatcher extends StateDispatcher<any, any, Props, any, any>
+  Dispatcher extends StateDispatcher<any, any, Props, any, any, any>
 > extends EventEmitter<StateEvents<Props>> {
   readonly children: {
     [K in keyof GetChildren<Dispatcher>]?: MachineFlyweight<Props, GetChildren<Dispatcher>[K]>;
@@ -434,7 +491,7 @@ type BuilderMap<
   Props extends {},
   ParentType extends Parent<any> | null
 > = {
-  [K in AllTransitions]: DispatchBuildFn<any, Partial<M>, Props, any, MessagesFrom<ParentType>>;
+  [K in AllTransitions]: DispatchBuildFn<any, Partial<M>, Props, any, MessagesFrom<ParentType>, any>;
 };
 
 export type MessagesFrom<P> = P extends Parent<infer M> ? M : {};
@@ -443,7 +500,7 @@ export type MessagesFrom<P> = P extends Parent<infer M> ? M : {};
 // class map you pass into the machine constructor. Otherwise, the class map won't ensure that your
 // map is exhaustive; that is, you could have asked for transitions to states that don't exist in
 // the map.
-type NextStateOf<T> = T extends DispatchBuildFn<infer Next, any, any, any, any> ? Next : never;
+type NextStateOf<T> = T extends DispatchBuildFn<infer Next, any, any, any, any, any> ? Next : never;
 export type BuilderMapOf<M> = M extends Machine<any, infer BM, any, any, any> ? BM : never;
 // Grab the state transition names from the builder map. This returns whatever transitions are in
 // the keys; it doesn't yet tell you which transitions are asked for
@@ -453,7 +510,7 @@ export type LoadPreciseTransitions<BM extends BuilderMap<any, any, any, any>> = 
   BM[TransitionNamesOf<BM>]
 >;
 export type FullySpecifiedBuilderMap<BM extends BuilderMap<any, any, any, any>> = {
-  [K in LoadPreciseTransitions<BM>]: DispatchBuildFn<any, any, any, any, any>;
+  [K in LoadPreciseTransitions<BM>]: DispatchBuildFn<any, any, any, any, any, any>;
 }
 
 export type RestrictParentProps<StaticProps extends {}, ParentProps extends {}> = {
@@ -485,7 +542,7 @@ export class Machine<
   } = {};
 
   private _current: StateDispatcher<
-    any, Partial<M>, StaticProps & DynamicProps, any, any
+    any, Partial<M>, StaticProps & DynamicProps, any, any, any
   > | null = null;
 
   private _currentName: keyof B & string;

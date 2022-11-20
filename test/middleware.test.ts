@@ -1,4 +1,4 @@
-import { expect, it, describe } from "vitest";
+import { expect, it, describe, vi } from "vitest";
 import * as create from "../index";
 
 describe("Middleware", () => {
@@ -172,5 +172,51 @@ describe("Middleware", () => {
     machine.start({});
     machine.dispatch("msg");
     expect(firstMiddlewareRan && secondMiddlewareRan && lastMiddlewareRan).toBeTruthy();
+  });
+
+  it("should collapse multiple props from middlewares into the state's props", () => {
+    const A = create.transition().build(state => state.build({
+      messages: () => state.msg({}),
+      props: {
+        msg: "hello world",
+      },
+    }));
+    const B = create.transition().build(state => state.build({
+      messages: () => state.msg({}),
+      props: {
+        log: true,
+      },
+    }));
+
+    const middleware = { A, B };
+
+    type MachineProps = {
+      count: number,
+    };
+    type Props = create.MiddlewareProps<typeof middleware> & MachineProps;
+
+    const State = create.transition<never, {}, Props>().middleware(middleware).build(state => {
+      expect(state.props.msg).toBe("hello world");
+      expect(state.props.log).toBeTruthy();
+      expect(state.props.count).toBe(5);
+      return state.build();
+    });
+
+    const machine = create.machine<{}, MachineProps>().build({
+      initial: "State",
+      states: { State },
+    });
+
+    const spy = machine.events("State").on("start", vi.fn());
+
+    machine.start({
+      count: 5,
+    });
+
+    expect(spy).toHaveBeenCalledOnce();
+    // Make sure we aren't leaking the middleware props back out
+    expect(machine.props()).toStrictEqual({
+      count: 5,
+    });
   });
 });
