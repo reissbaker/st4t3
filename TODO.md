@@ -55,3 +55,11 @@ more knobs to turn:
   of `Messages`); think of them like `method_missing` from Ruby.
 
 Child machines should probably propagate their prop updates upwards.
+
+StateDispatchers have props specified as `any`, because Middleware operates on
+explicit StateDispatchers rather than just the interfaces we care about. If
+`props` is a field with an explicit type, `tsc` tries to include it in
+structural type checking, which fails because we allow props to be subsets of
+each other rather than exact matches. If you switch middleware to instead
+operate on type interfaces, I think it should work without unnecessary `any`
+usage... And will be more resilient to changes in the future.
