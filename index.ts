@@ -44,10 +44,10 @@ export class DispatchBuilder<
     });
     const middlewareProps: Partial<MiddlewareProps<CurrentMiddleware>> = {};
     for(const dispatcher of this.middleware) {
-      if(!dispatcher.props) continue;
-      for(const key in dispatcher.props) {
+      if(!dispatcher.returnedProps) continue;
+      for(const key in dispatcher.returnedProps) {
         //@ts-ignore
-        middlewareProps[key] = dispatcher.props[key];
+        middlewareProps[key] = dispatcher.returnedProps[key];
       }
     }
 
@@ -85,7 +85,7 @@ export class DispatchBuilder<
   >(args?: BuildArgs<Next, M, Props, C, ReturnedProps>) {
     if(args) {
       return new StateDispatcher<Next, M, Props, ParentMessages, C, ReturnedProps>(
-        args, this.follow, this.machine, this.middleware, this.friend
+        args, this.follow, this.machine, this.middleware, this.props, this.friend
       );
     }
     return new StateDispatcher(
@@ -93,6 +93,7 @@ export class DispatchBuilder<
       this.follow,
       this.machine,
       this.middleware,
+      this.props,
       this.friend,
     );
   }
@@ -388,7 +389,8 @@ export class StateDispatcher<
 > {
   readonly hasChildren: boolean; // dumb micro optimization for cpu branch predictor
   readonly children: Children<P, M>;
-  readonly props?: ReturnedProps & Partial<P>;
+  readonly returnedProps?: ReturnedProps & Partial<P>;
+  readonly props: any; // tsc wants to use this in typechecking for middleware. Do not let it!
 
   private readonly _stop: (() => any) | undefined;
   private readonly messages: MessageDispatcher<M>;
@@ -404,13 +406,15 @@ export class StateDispatcher<
     private readonly follow: FollowHandler,
     machine: Machine<any, any, any, any, any>,
     private readonly middleware: Array<StateDispatcher<Next, M, P, ParentMessages, any, any>>,
+    props: P,
     friend: FriendMethods<P>,
   ) {
     this.children = args.children || {};
     this.hasChildren = !!args.children;
     this.messages = args.messages(gotoBuilder(machine), friend.updateProps);
     this._stop = args.stop;
-    this.props = args.props;
+    this.returnedProps = args.props;
+    this.props = props;
   }
 
   dispatch<Name extends keyof M>(
@@ -720,7 +724,7 @@ export class Machine<
         const child = current.children[key];
         const events = dispatcherEvent ? dispatcherEvent.children[key] : undefined;
         child._hydrate(parent, events);
-        child.start(props);
+        child.start(current.props); // Use the dispatcher props since middleware may have added data
       }
     }
 
