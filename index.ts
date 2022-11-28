@@ -308,6 +308,12 @@ export function transition<
   return new StateBuilder();
 }
 
+// "Friend methods" a la C++
+// Since JS/TS doesn't have "friend" types -- e.g. types that are allowed to call other types'
+// private methods -- we pass in a hash of friendly methods that we're letting someone call, even
+// though on our end these are private methods. For example, we don't want to expose prop updating
+// outside of message handlers, but we want message handlers to be able to update props on the
+// machine -- so the machine generates a friend hash and passes it through to the builders.
 type UpdateProps<Props extends {}> = (props: Partial<Props>) => void;
 type FriendMethods<Props extends {}> = {
   updateProps: UpdateProps<Props>,
