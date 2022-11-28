@@ -33,7 +33,7 @@ export class DispatchBuilder<
   readonly props: Props & MiddlewareProps<CurrentMiddleware>;
 
   constructor(
-    private readonly machine: Machine<Partial<M>, any, any, any, any>,
+    private readonly machine: Machine<any, any, any, any, any>,
     props: Props,
     readonly parent: Parent<ParentMessages>,
     middleware: CurrentMiddleware,
@@ -145,7 +145,9 @@ export class StateBuilder<
     ReturnedProps
   >>(
     curryBuildFn: (
-      builder: DispatchBuilder<Next, M, Props, ParentMessages, CurrentMiddleware>
+      builder: DispatchBuilder<
+        Next, MessagesForDispatch<M, CurrentMiddleware>, Props, ParentMessages, CurrentMiddleware
+      >
     ) => Dispatcher
   ): DispatchBuildFn<
     Next,
@@ -166,7 +168,9 @@ export class StateBuilder<
     ReturnedProps
   >>(
     curryBuildFn?: (
-      builder: DispatchBuilder<Next, M, Props, ParentMessages, CurrentMiddleware>
+      builder: DispatchBuilder<
+        Next, MessagesForDispatch<M, CurrentMiddleware>, Props, ParentMessages, CurrentMiddleware
+      >
     ) => Dispatcher
   ) {
     return (machine: any, props: any, parent: any) => {
@@ -176,12 +180,18 @@ export class StateBuilder<
             return state.build({ messages: () => state.messages({}) });
           }) as (
             (builder: DispatchBuilder<
-              Next, M, Props, ParentMessages, CurrentMiddleware
+              Next,
+              MessagesForDispatch<M, CurrentMiddleware>,
+              Props,
+              ParentMessages,
+              CurrentMiddleware
             >) => Dispatcher
           );
       }
       return curryBuildFn(
-        new DispatchBuilder<Next, M, Props, ParentMessages, CurrentMiddleware>(
+        new DispatchBuilder<
+          Next, MessagesForDispatch<M, CurrentMiddleware>, Props, ParentMessages, CurrentMiddleware
+        >(
           machine, props, parent, this._middleware
         )
       );
@@ -216,6 +226,7 @@ export class StateBuilder<
 type MiddlewareMessages<T> = T extends Middleware<any, infer M, any, any> ? M : never;
 type MiddlewareNext<T> = T extends Middleware<infer N, any, any, any> ? N : never;
 type MessagesForDispatch<M extends BaseMessages, CurrentMiddleware> =
+  IfEquals<CurrentMiddleware, {}> extends true ? M :
     Omit<M, keyof MiddlewareMessages<CurrentMiddleware>>
       & OptionalOverride<MiddlewareMessages<CurrentMiddleware>, M>;
 
@@ -306,7 +317,7 @@ export type DispatchBuildFn<
   ParentMessages extends BaseMessages,
   ReturnedProps extends {}
 > = (
-  machine: Machine<M, any, any, any, any>,
+  machine: Machine<any, any, any, any, any>,
   props: Props,
   parent: Parent<NonNullable<ParentMessages>>,
   _: ParentMessages
@@ -377,7 +388,7 @@ export class StateDispatcher<
   constructor(
     args: BuildArgs<Next, M, P, C, ReturnedProps>,
     private readonly follow: FollowHandler,
-    machine: Machine<M, any, any, any, any>,
+    machine: Machine<any, any, any, any, any>,
     private readonly middleware: Array<StateDispatcher<Next, M, P, ParentMessages, any, any>>
   ) {
     this.children = args.children || {};

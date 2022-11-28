@@ -525,3 +525,22 @@ testType(() => {
     messages: () => state.msg({}),
   }));
 });
+
+testType(() => {
+  // It should be allowed to ignore messages that your middleware responds to
+  type Messages = {
+    update(): void,
+  };
+
+  const Middleware = create.transition<never, Messages>().build(state => state.build({
+    messages: () => state.msg({
+      update() {}
+    }),
+  }));
+
+  create.transition<
+    "Somewhere", Messages
+  >().middleware({ Middleware }).build(state => state.build({
+    messages: () => state.msg({}),
+  }));
+});
