@@ -16,7 +16,7 @@ type BuildArgs<
   ReturnedProps extends {},
 > = {
   children?: C,
-  messages: (goto: Goto<Next, Props>) => MessageDispatcher<M>,
+  messages: (goto: Goto<Next, Props>, set: UpdateProps<Props>) => MessageDispatcher<M>,
   stop?: () => any,
   props?: ReturnedProps,
 };
@@ -37,9 +37,10 @@ export class DispatchBuilder<
     props: Props,
     readonly parent: Parent<ParentMessages>,
     middleware: CurrentMiddleware,
+    private readonly friend: FriendMethods<Props>,
   ) {
     this.middleware = Object.values(middleware || {}).map(buildFn => {
-      return buildFn(machine, props, parent, null as any)
+      return buildFn(machine, props, parent, null as any, friend)
     });
     const middlewareProps: Partial<MiddlewareProps<CurrentMiddleware>> = {};
     for(const dispatcher of this.middleware) {
@@ -84,7 +85,7 @@ export class DispatchBuilder<
   >(args?: BuildArgs<Next, M, Props, C, ReturnedProps>) {
     if(args) {
       return new StateDispatcher<Next, M, Props, ParentMessages, C, ReturnedProps>(
-        args, this.follow, this.machine, this.middleware
+        args, this.follow, this.machine, this.middleware, this.friend
       );
     }
     return new StateDispatcher(
@@ -92,6 +93,7 @@ export class DispatchBuilder<
       this.follow,
       this.machine,
       this.middleware,
+      this.friend,
     );
   }
 
@@ -173,7 +175,7 @@ export class StateBuilder<
       >
     ) => Dispatcher
   ) {
-    return (machine: any, props: any, parent: any) => {
+    return (machine: any, props: any, parent: any, _: any, friend: any) => {
       if(!curryBuildFn) {
         curryBuildFn = (
           (state: DispatchBuilder<Next, any, Props, ParentMessages, CurrentMiddleware>) => {
@@ -192,7 +194,7 @@ export class StateBuilder<
         new DispatchBuilder<
           Next, MessagesForDispatch<M, CurrentMiddleware>, Props, ParentMessages, CurrentMiddleware
         >(
-          machine, props, parent, this._middleware
+          machine, props, parent, this._middleware, friend
         )
       );
     };
@@ -306,6 +308,11 @@ export function transition<
   return new StateBuilder();
 }
 
+type UpdateProps<Props extends {}> = (props: Partial<Props>) => void;
+type FriendMethods<Props extends {}> = {
+  updateProps: UpdateProps<Props>,
+};
+
 // Complex type that we build for constructing new states. It takes one fake param (the last one),
 // solely used to force ParentMessages to be contravariant. We always pass null to that param and
 // cast to any.
@@ -320,7 +327,8 @@ export type DispatchBuildFn<
   machine: Machine<any, any, any, any, any>,
   props: Props,
   parent: Parent<NonNullable<ParentMessages>>,
-  _: ParentMessages
+  _: ParentMessages,
+  friend: FriendMethods<Props>,
 ) => Dispatcher;
 
 export class Parent<M extends BaseMessages> {
@@ -389,11 +397,12 @@ export class StateDispatcher<
     args: BuildArgs<Next, M, P, C, ReturnedProps>,
     private readonly follow: FollowHandler,
     machine: Machine<any, any, any, any, any>,
-    private readonly middleware: Array<StateDispatcher<Next, M, P, ParentMessages, any, any>>
+    private readonly middleware: Array<StateDispatcher<Next, M, P, ParentMessages, any, any>>,
+    friend: FriendMethods<P>,
   ) {
     this.children = args.children || {};
     this.hasChildren = !!args.children;
-    this.messages = args.messages(gotoBuilder(machine));
+    this.messages = args.messages(gotoBuilder(machine), friend.updateProps);
     this._stop = args.stop;
     this.props = args.props;
   }
@@ -595,11 +604,7 @@ export class Machine<
 
     // Update props, if new ones were passed in
     if(updateProps !== undefined) {
-      for(const k in updateProps) {
-        // Dumb typecheck workarounds
-        const key = k as keyof (StaticProps & DynamicProps);
-        this._props[key] = updateProps[key] as any;
-      }
+      this._updateProps(updateProps);
     }
 
     this._stopCurrent();
@@ -679,12 +684,25 @@ export class Machine<
     }
   }
 
+  private _updateProps(updateProps: Partial<StaticProps & DynamicProps>) {
+    if(!this._props) throw new Error("Internal error: props are null");
+    for(const k in updateProps) {
+      // Dumb typecheck workarounds
+      const key = k as keyof (StaticProps & DynamicProps);
+      this._props[key] = updateProps[key] as any;
+    }
+  }
+
   private _createAndStart<N extends keyof B>(name: N & string, props: StaticProps & DynamicProps) {
     const stateBuilder = this.builders[name];
     this._currentName = name;
 
     this._isStartingNewState = true;
-    const current = this._current = stateBuilder(this, props, this._parent as any, null as any);
+    const current = this._current = stateBuilder(this, props, this._parent as any, null as any, {
+      updateProps: (props) => {
+        this._updateProps(props);
+      },
+    });
     this._isStartingNewState = false;
 
     const dispatcherEvent = this._dispatcherEventMap[name];

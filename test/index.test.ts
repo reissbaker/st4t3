@@ -251,6 +251,42 @@ describe("State Machines", () => {
   });
 });
 
+describe("Updating props", () => {
+  it("Should allow updating props from message handlers", () => {
+    type Messages = {
+      update(): void,
+    };
+    type Props = {
+      msg: string,
+    };
+
+    const State = create.transition<never, Messages, Props>().build(state => state.build({
+      messages: (_, set) => state.msg({
+        update() {
+          set({
+            msg: "updated",
+          });
+        },
+      }),
+    }));
+
+    const machine = create.machine<Messages, Props>().build({
+      initial: "State",
+      states: { State },
+    });
+    machine.start({
+      msg: "initial",
+    });
+    expect(machine.props()).toStrictEqual({
+      msg: "initial",
+    });
+    machine.dispatch("update");
+    expect(machine.props()).toStrictEqual({
+      msg: "updated",
+    });
+  });
+});
+
 describe("State machine ultra shorthand syntax", () => {
   const Final = create.transition().build();
   function machine() {
