@@ -390,7 +390,7 @@ export class StateDispatcher<
   readonly hasChildren: boolean; // dumb micro optimization for cpu branch predictor
   readonly children: Children<P, M>;
   readonly returnedProps?: ReturnedProps & Partial<P>;
-  readonly props: any; // tsc wants to use this in typechecking for middleware. Do not let it!
+  readonly props: Partial<P>; // variance rules are annoying when combining middleware
 
   private readonly _stop: (() => any) | undefined;
   private readonly messages: MessageDispatcher<M>;
