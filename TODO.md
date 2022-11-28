@@ -62,4 +62,5 @@ explicit StateDispatchers rather than just the interfaces we care about. If
 structural type checking, which fails because we allow props to be subsets of
 each other rather than exact matches. If you switch middleware to instead
 operate on type interfaces, I think it should work without unnecessary `any`
-usage... And will be more resilient to changes in the future.
+usage... And will be more resilient to changes in the future. UPDATE: no, this
+doesn't work. Probably need to read more about variance.
