@@ -53,3 +53,5 @@ more knobs to turn:
   and pass an array of middleware functions. Since they're so arbitrary, they
   don't change the main states type at all (e.g. you still need to define all
   of `Messages`); think of them like `method_missing` from Ruby.
+
+Child machines should probably propagate their prop updates upwards.
