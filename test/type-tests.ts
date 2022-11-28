@@ -544,3 +544,22 @@ testType(() => {
     messages: () => state.msg({}),
   }));
 });
+
+testType(() => {
+  // It should be allowed to respond to messages defined by your middleware if you define them too
+  type Messages = {
+    update(): void,
+  };
+  const Middleware = create.transition<never, Messages>().build(state => state.build({
+    messages: () => state.msg({
+      update() {}
+    }),
+  }));
+  create.transition<
+    "Somewhere", Messages
+  >().middleware({ Middleware }).build(state => state.build({
+    messages: () => state.msg({
+      update() {}
+    }),
+  }));
+});
