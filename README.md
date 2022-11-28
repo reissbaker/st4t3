@@ -145,6 +145,29 @@ export const LongestFormFinal = create.transition<never>().build(state => {
 });
 ```
 
+## Message parameters
+
+Sometimes you may want to pass data along with your messages; for example, if
+movement is being controlled by an analog stick, you'd want to know how much
+the stick is being tilted. The message type can have functions define
+parameters, and then the `dispatch` function will require you to pass them in
+for those messages; e.g.:
+
+```typescript
+type Messages = {
+  jump(): void,
+  move(x: number, y: number),
+};
+
+const machine = create.machine<Messages>().build({
+  // ...
+});
+
+machine.start({});
+machine.dispatch("move", 0.5, 0.2); // Compiler checks you pass x, y here
+machine.dispatch("jump"); // Compiler checks you pass nothing here
+```
+
 # Injecting props
 
 Sometimes, you may want your set of states to accept some sort of configuration
@@ -284,27 +307,35 @@ only difference is that static props don't need to be passed into
 `machine.start`. This can be useful for nesting machines, where the inner state
 machine has extra props that the outer one doesn't need to be aware of.
 
-## Message parameters
+## Updating props inside message handlers
 
-Sometimes you may want to pass data along with your messages; for example, if
-movement is being controlled by an analog stick, you'd want to know how much
-the stick is being tilted. The message type can have functions define
-parameters, and then the `dispatch` function will require you to pass them in
-for those messages; e.g.:
+As shown above, you can update props upon transition via `goto(state, props)`.
+If you want to update props inside message handlers *without* triggering a
+state change, you can do that too:
 
 ```typescript
 type Messages = {
-  jump(): void,
-  move(x: number, y: number),
+  update(msg: string): void,
+};
+type Props = {
+  msg: string,
 };
 
-const machine = create.machine<Messages>().build({
-  // ...
+const State = create.transition<"Next", Messages, Props>().build(state => {
+  return state.build({
+    // The second parameter of the messages function is a `set` function. It
+    // allows you to update any of the props of your state, similar to `goto`
+    // but without causing a state transition. All it does is update props: it
+    // doesn't re-run any initialization code.
+    // If you want to re-run your initialization code, just use `goto` and
+    // transition to yourself!
+    messages: (goto, set) => state.msg({
+      update(msg) {
+        set({ msg });
+      },
+    }),
+  });
 });
-
-machine.start({});
-machine.dispatch("move", 0.5, 0.2); // Compiler checks you pass x, y here
-machine.dispatch("jump"); // Compiler checks you pass nothing here
 ```
 
 # Following events from other libraries
