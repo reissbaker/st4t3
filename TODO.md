@@ -63,4 +63,58 @@ structural type checking, which fails because we allow props to be subsets of
 each other rather than exact matches. If you switch middleware to instead
 operate on type interfaces, I think it should work without unnecessary `any`
 usage... And will be more resilient to changes in the future. UPDATE: no, this
-doesn't work. Probably need to read more about variance.
+doesn't work. Probably need to read more about variance. Switched it to be
+`Partial<Props>` at least, which handles variable props.
+
+Issue with child machines: you can get phantom messages you are unaware of, and
+what's worse it that you can shadow messages the parent machine sends and
+expect them to have different parameter types. This is because child machines
+only know about their enclosing parent state -- not the enclosing machine. In
+general this lack of knowledge is a good thing IMO: it allows you to segment
+out pieces of state into separate concerns and files. But it comes at a cost of
+confusing and unsafe behavior for shadowing. To fix this, you need a *runtime*
+representation of messages: right now, since messages are encoded strictly at
+compile time, states can't ignore messages they don't subscribe to and have to
+forward everything (they don't know what they subscribe to!). A couple of
+options:
+
+* Actually make a runtime representation of messages and incorporate this into
+  the API.
+* Use the keys of the existing messages hash as a source of truth for the
+  compile time restrictions, since the messages hash is required to contain
+  every message you respond to... Unless it's responded to in a middleware, in
+  which case, fuck. Middleware can respond to a superset of messages, so you
+  can't even use their hashes as a source of truth. I think this is infeasible.
+
+Welp. Guess you need a runtime representation of messages then. Maybe something
+like:
+
+```typescript
+const Messages = create.messages({
+  update: create.handler<(arg: number) => void>(),
+});
+
+const State = create.transition<"Next", Props>(Messages).build(state => {
+  return state.build({
+    messages: goto => state.msg({
+      update(arg) {
+        goto("Next");
+      },
+    }),
+  });
+});
+```
+
+The `messages` object should have `pick` and `omit` methods similar to the TS
+types. This also means that machines are aware at runtime of their accepted
+messages, and can discard; you don't need to do it in the state, you can
+forward everything to the machines and have them discard what they don't care
+about. Actually, short-circuiting in both will reduce the number of unnecessary
+calls, so probably just do that.
+
+Technically this is a problem for props too, although not really actually,
+shadowed props are overwritten in the child machine! This will become a problem
+if child machines start propagating updates back to parent machines tho. I
+think for props the ideal solution is different: type-check that child machine
+props can't vary when you assign the states to the `states` hash. Props are
+global state; it's insane to have nested, differently-shadowed global state.
