@@ -285,6 +285,53 @@ describe("Updating props", () => {
       msg: "updated",
     });
   });
+
+  it("Should gracefully handle updating props when children are involved", () => {
+    type Messages = {
+      update(): void,
+      test(): void,
+    };
+    type Props = {
+      msg: string,
+    };
+
+    const ChildState = create.transition<never, Messages, Props>().build(state => {
+      return state.build({
+        messages: () => state.msg({
+          update() {},
+          test() {
+            expect(state.props.msg).toBe("updated");
+          },
+        }),
+      });
+    });
+
+    const State = create.transition<never, Messages, Props>().build(state => state.build({
+      children: {
+        child: state.child<Messages, Props>().build({
+          initial: "ChildState",
+          states: { ChildState },
+        }),
+      },
+      messages: (_, set) => state.msg({
+        test() {},
+        update() {
+          set({
+            msg: "updated",
+          });
+        },
+      }),
+    }));
+
+    const machine = create.machine<Messages, Props>().build({
+      initial: "State",
+      states: { State },
+    });
+    machine.start({ msg: "not updated" });
+
+    machine.dispatch("update");
+    machine.dispatch("test");
+  });
 });
 
 describe("State machine ultra shorthand syntax", () => {

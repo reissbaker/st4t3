@@ -85,7 +85,7 @@ export class DispatchBuilder<
   >(args?: BuildArgs<Next, M, Props, C, ReturnedProps>) {
     if(args) {
       return new StateDispatcher<Next, M, Props, ParentMessages, C, ReturnedProps>(
-        args, this.follow, this.machine, this.middleware, this.props, this.friend
+        args, this.follow, this.machine, this.middleware, this.props, this.friend, this
       );
     }
     return new StateDispatcher(
@@ -95,6 +95,7 @@ export class DispatchBuilder<
       this.middleware,
       this.props,
       this.friend,
+      this,
     );
   }
 
@@ -408,6 +409,7 @@ export class StateDispatcher<
     private readonly middleware: Array<StateDispatcher<Next, M, P, ParentMessages, any, any>>,
     props: P,
     friend: FriendMethods<P>,
+    readonly builder: DispatchBuilder<any, any, any, any, any>
   ) {
     this.children = args.children || {};
     this.hasChildren = !!args.children;
@@ -694,12 +696,18 @@ export class Machine<
     }
   }
 
-  private _updateProps(updateProps: Partial<StaticProps & DynamicProps>) {
+  protected _updateProps(updateProps: Partial<StaticProps & DynamicProps>) {
     if(!this._props) throw new Error("Internal error: props are null");
-    for(const k in updateProps) {
-      // Dumb typecheck workarounds
-      const key = k as keyof (StaticProps & DynamicProps);
-      this._props[key] = updateProps[key] as any;
+    mergeProps(this._props, updateProps);
+    if(!this._current) throw new Error("Internal error: _current was never initialized");
+    // Have to update the builder props too, sigh, in case something reads from them
+    mergeProps(this._current.builder.props, updateProps);
+
+    // Forward updates to children
+    if(this._current.hasChildren) {
+      for(const key in this._current.children) {
+        this._current.children[key]._updateProps(updateProps);
+      }
     }
   }
 
@@ -724,7 +732,12 @@ export class Machine<
         const child = current.children[key];
         const events = dispatcherEvent ? dispatcherEvent.children[key] : undefined;
         child._hydrate(parent, events);
-        child.start(current.props); // Use the dispatcher props since middleware may have added data
+        child.start({
+          // Use the dispatcher props since middleware may have added data
+          ...current.props,
+          // ...But merge ours in on top, since they may have changed via set calls
+          ...props,
+        });
       }
     }
 
@@ -752,6 +765,14 @@ export class Machine<
   private _assertRunning() {
     if(!this._everRan) throw new Error("State machine was never started");
     if(!this._running) throw new Error("State machine is stopped");
+  }
+}
+
+function mergeProps<Props extends {}>(dest: Props, update: Partial<Props>) {
+  for(const k in update) {
+    // Dumb typecheck workarounds
+    const key = k as keyof Props;
+    dest[key] = update[key] as Props[typeof k];
   }
 }
 
