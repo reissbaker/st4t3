@@ -1,6 +1,6 @@
 {
   "name": "st4t3",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "An small-but-powerful typesafe state machine library",
   "main": "build/index.js",
   "types": "build/index.d.ts",
