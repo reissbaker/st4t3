@@ -118,3 +118,6 @@ if child machines start propagating updates back to parent machines tho. I
 think for props the ideal solution is different: type-check that child machine
 props can't vary when you assign the states to the `states` hash. Props are
 global state; it's insane to have nested, differently-shadowed global state.
+
+FIXME: having middleware define message handlers for you works only when you
+have a single middleware. Multiple middlewares break this behavior.
