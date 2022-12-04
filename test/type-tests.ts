@@ -563,3 +563,30 @@ testType(() => {
     }),
   }));
 });
+
+testType(() => {
+  // Multiple messages handled by multiple middleware should be recognized as optional for the
+  // client state
+  type Messages = {
+    log(msg: string): void,
+    flush(): void,
+  };
+
+  const Logger = create.transition<never, Pick<Messages, 'log'>>().build(state => state.build({
+    messages: () => state.msg({
+      log() {},
+    }),
+  }));
+
+  const Flusher = create.transition<never, Pick<Messages, 'flush'>>().build(state => state.build({
+    messages: () => state.msg({
+      flush() {},
+    }),
+  }));
+
+  create.transition<
+    never, Messages
+  >().middleware({ Logger, Flusher }).build(state => state.build({
+    messages: () => state.msg({}),
+  }));
+});

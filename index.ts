@@ -227,7 +227,8 @@ export class StateBuilder<
 }
 
 // Types to check middleware variance
-type MiddlewareMessages<T> = T extends Middleware<any, infer M, any, any> ? M : never;
+type MiddlewareMessages<T> = T extends Middleware<any, infer M, any, any> ?
+  UnionToIntersection<M> : never;
 type MiddlewareNext<T> = T extends Middleware<infer N, any, any, any> ? N : never;
 type MessagesForDispatch<M extends BaseMessages, CurrentMiddleware> =
   IfEquals<CurrentMiddleware, {}> extends true ? M :
