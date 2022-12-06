@@ -16,10 +16,24 @@ type BuildArgs<
   ReturnedProps extends {},
 > = {
   children?: C,
-  messages: (goto: Goto<Next, Props>, set: UpdateProps<Props>) => MessageDispatcher<M>,
+  messages: MessageFn<Next, M, Props, ReturnedProps>,
   stop?: () => any,
   props?: ReturnedProps,
 };
+
+type MessageFn<
+  Next extends string,
+  M extends BaseMessages,
+  Props extends {},
+  ReturnedProps extends {},
+> = (
+  goto: Goto<Next, Props>,
+  set: MaybeUpdateProps<Props>,
+  forward: MaybeUpdateProps<ReturnedProps>,
+) => MessageDispatcher<M>;
+
+type MaybeUpdateProps<Props extends {}> = IfEquals<Props, {}> extends true ?
+  null : UpdateProps<Props>;
 
 export class DispatchBuilder<
   Next extends string,
@@ -45,6 +59,9 @@ export class DispatchBuilder<
     const middlewareProps: Partial<MiddlewareProps<CurrentMiddleware>> = {};
     for(const dispatcher of this.middleware) {
       if(!dispatcher.returnedProps) continue;
+      dispatcher.events.on("forward", (props) => {
+        mergeProps(this.props, props);
+      });
       for(const key in dispatcher.returnedProps) {
         //@ts-ignore
         middlewareProps[key] = dispatcher.returnedProps[key];
@@ -381,6 +398,10 @@ export class MessageDispatcher<M extends BaseMessages> {
   }
 }
 
+type PropsForwarded<ReturnedProps extends {}> = {
+  forward: Partial<ReturnedProps>,
+};
+
 export class StateDispatcher<
   Next extends string,
   M extends BaseMessages,
@@ -393,6 +414,7 @@ export class StateDispatcher<
   readonly children: Children<P, M>;
   readonly returnedProps?: ReturnedProps & Partial<P>;
   readonly props: Partial<P>; // variance rules are annoying when combining middleware
+  readonly events = new EventEmitter<PropsForwarded<ReturnedProps>>();
 
   private readonly _stop: (() => any) | undefined;
   private readonly messages: MessageDispatcher<M>;
@@ -414,7 +436,16 @@ export class StateDispatcher<
   ) {
     this.children = args.children || {};
     this.hasChildren = !!args.children;
-    this.messages = args.messages(gotoBuilder(machine), friend.updateProps);
+
+    this.messages = args.messages(
+      gotoBuilder(machine),
+      friend.updateProps as MaybeUpdateProps<P>,
+      ((returned) => {
+        if(this.returnedProps) mergeProps(this.returnedProps, returned);
+        this.events.emit("forward", returned);
+      }) as MaybeUpdateProps<ReturnedProps>,
+    );
+
     this._stop = args.stop;
     this.returnedProps = args.props;
     this.props = props;

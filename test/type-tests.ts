@@ -590,3 +590,74 @@ testType(() => {
     messages: () => state.msg({}),
   }));
 });
+
+testType(() => {
+  // You should be able to forward returned props from middleware
+  type Messages = {
+    tick(): void,
+  };
+
+  create.transition<never, Messages>().build(state => {
+    let value = 0;
+    return state.build({
+      messages: (_1, _2, forward) => state.msg({
+        tick() {
+          value++;
+          forward({
+            value
+          });
+        }
+      }),
+      props: {
+        value
+      },
+    });
+  });
+});
+
+testType(() => {
+  // You shouldn't be able to forward props that aren't returned from middleware
+  type Messages = {
+    tick(): void,
+  };
+
+  create.transition<never, Messages>().build(state => {
+    let value = 0;
+    return state.build({
+      messages: (_1, _2, forward) => state.msg({
+        tick() {
+          value++;
+          forward({
+            value,
+            //@ts-expect-error
+            test: false,
+          });
+        }
+      }),
+      props: {
+        value
+      },
+    });
+  });
+});
+
+testType(() => {
+  // You shouldn't be able to forward props when no props are returned
+  type Messages = {
+    tick(): void,
+  };
+
+  create.transition<never, Messages>().build(state => {
+    let value = 0;
+    return state.build({
+      messages: (_1, _2, forward) => state.msg({
+        tick() {
+          //@ts-expect-error
+          forward({
+            value,
+          });
+        }
+      }),
+    });
+  });
+});

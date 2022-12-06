@@ -219,4 +219,47 @@ describe("Middleware", () => {
       count: 5,
     });
   });
+
+  it("should allow you to update returned props via the forward fn", () => {
+    type Messages = {
+      tick(): void,
+      test(val: number): void,
+    };
+
+    const Middleware = create.transition<never, Pick<Messages, 'tick'>>().build(state => {
+      let value = 0;
+      return state.build({
+        messages: (_1, _2, forward) => state.msg({
+          tick() {
+            value++;
+            forward({ value });
+          },
+        }),
+        props: {
+          value
+        },
+      });
+    });
+
+    const middleware = { Middleware };
+    const State = create.transition<
+      never, Messages, create.MiddlewareProps<typeof middleware>
+    >().middleware(middleware).build(state => state.build({
+      messages: () => state.msg({
+        test(val) {
+          expect(state.props.value).toBe(val);
+        }
+      }),
+    }));
+
+    const machine = create.machine<Messages>().build({
+      initial: "State",
+      states: { State },
+    });
+
+    machine.start({});
+    machine.dispatch("test", 0);
+    machine.dispatch("tick");
+    machine.dispatch("test", 1);
+  });
 });
