@@ -118,3 +118,9 @@ if child machines start propagating updates back to parent machines tho. I
 think for props the ideal solution is different: type-check that child machine
 props can't vary when you assign the states to the `states` hash. Props are
 global state; it's insane to have nested, differently-shadowed global state.
+
+FIXME: currently, if you ignore all returned middleware props, you'll get a
+confusing `never` based type error. This is beecause we check the Props extends
+the returned middleware props, in order to ensure that there aren't conflicting
+props. This is too strict! It should only error when the props actually
+conflict, not when there are ignored props.
