@@ -5,7 +5,7 @@ state graphs with minimal memory usage. It only keeps a single state instance
 in memory at a time per-machine, and allows you to break large state machines
 into many files rather than forcing you to define the machine entirely in one
 file to get full type safety. There are no runtime dependencies and the code is
-<800 lines of TypeScript, excluding comments.
+<850 lines of TypeScript, excluding comments.
 
 * [Development](#development)
 * [Getting started](#getting-started)
@@ -915,6 +915,59 @@ machine.start({});
 Middleware props can be anything, as long as they don't conflict with other
 props you're using for the state. If your state's props specify `msg: string`,
 your middleware can't return `{ msg: 5 }`: that's a type error.
+
+## Updating returned props from middleware
+
+For machine-wide props, you can use `goto` or `set` to update the props. But
+since middleware props are scoped to just the props returned by that
+middleware, those will result in type errors if you try to update your own
+returned props from within a middleware; for example:
+
+```typescript
+type Messages = {
+  tick(): void,
+};
+
+type Props = {
+  allowDoubleJumps: boolean,
+};
+
+const Middleware = create.transition<never, Messages, Props>().build(state => {
+  let value = 0;
+  return state.build({
+    props: { value },
+    messages: (_, set) => state.msg({
+      tick() {
+        value++;
+        // The following is a type error, since our Props are { allowDoubleJumps: boolean }!
+        set({ value });
+      },
+    }),
+  });
+});
+```
+
+To update *returned* props from a middleware, you can use the `forward`
+function:
+
+```typescript
+const Middleware = create.transition<never, Messages, Props>().build(state => {
+  let value = 0;
+  return state.build({
+    props: { value },
+    messages: (_1, _2, forward) => state.msg({
+      tick() {
+        value++;
+        forward({ value });
+      },
+    }),
+  });
+});
+```
+
+The `forward` function will update the props you set in the `props` field, and
+will also notify any client states of the middleware that the props changed,
+and cause them to update their copy of the props.
 
 # Manually transitioning states from the machine
 
